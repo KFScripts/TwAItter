@@ -11,7 +11,8 @@ export type SocketEventType =
   | 'AGENT_UPDATED'
   | 'SIMULATION_STATUS'
   | 'AGENT_ACTION_LOG'
-  | 'ENGINE_STATUS';
+  | 'ENGINE_STATUS'
+  | 'BACKEND_LOG';
 
 export interface SocketMessage {
   type: SocketEventType;

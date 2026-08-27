@@ -7,6 +7,42 @@ import { AgentEngine } from '../services/agentEngine';
 
 const router = Router();
 
+const fallbackAuthor = (username: string) => ({
+  username,
+  displayName: username === 'admin' ? 'Admin' : username,
+  avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
+});
+
+async function attachAuthorsAndReplyContext(posts: any[]) {
+  const authorUsernames = [...new Set(posts.map((p) => p.authorUsername))];
+  const parentIds = [
+    ...new Set(
+      posts
+        .map((p) => p.replyToPostId)
+        .filter(Boolean)
+        .map((id: any) => String(id))
+    )
+  ];
+
+  const [authors, parents] = await Promise.all([
+    Agent.find({ username: { $in: authorUsernames } })
+      .select('username displayName avatarUrl bio mood city profession accountType verificationBadge')
+      .lean(),
+    parentIds.length
+      ? Post.find({ _id: { $in: parentIds } }).select('_id authorUsername').lean()
+      : Promise.resolve([])
+  ]);
+
+  const authorMap = new Map(authors.map((a) => [a.username, a]));
+  const parentMap = new Map(parents.map((p) => [String(p._id), p.authorUsername]));
+
+  return posts.map((p) => ({
+    ...p,
+    author: authorMap.get(p.authorUsername) || fallbackAuthor(p.authorUsername),
+    replyToAuthorUsername: p.replyToPostId ? parentMap.get(String(p.replyToPostId)) || null : null
+  }));
+}
+
 router.get('/trends', async (req: Request, res: Response) => {
   try {
     const trends = await TrendsService.getDynamicTrends();
@@ -23,30 +59,16 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (tag) filter.tags = tag;
     if (username) filter.authorUsername = username;
-    if (onlyRoots === 'true') filter.replyToPostId = null;
+    if (onlyRoots === 'true') {
+      filter.$or = [{ replyToPostId: null }, { replyToPostId: { $exists: false } }];
+    }
 
     const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .lean();
 
-    const authorUsernames = [...new Set(posts.map((p) => p.authorUsername))];
-    const authors = await Agent.find({ username: { $in: authorUsernames } })
-      .select('username displayName avatarUrl bio mood city profession')
-      .lean();
-
-    const authorMap = new Map(authors.map((a) => [a.username, a]));
-
-    const populated = posts.map((p) => ({
-      ...p,
-      author: authorMap.get(p.authorUsername) || {
-        username: p.authorUsername,
-        displayName: p.authorUsername,
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
-      }
-    }));
-
-    res.json(populated);
+    res.json(await attachAuthorsAndReplyContext(posts));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -57,16 +79,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     const post = await Post.findById(req.params.id).lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const author = await Agent.findOne({ username: post.authorUsername }).lean();
-
-    res.json({
-      ...post,
-      author: author || {
-        username: post.authorUsername,
-        displayName: post.authorUsername,
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
-      }
-    });
+    const [populated] = await attachAuthorsAndReplyContext([post]);
+    res.json(populated);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -84,23 +98,7 @@ router.get('/:id/thread', async (req: Request, res: Response) => {
       .sort({ createdAt: 1 })
       .lean();
 
-    const authorUsernames = [...new Set(allThreadPosts.map((p) => p.authorUsername))];
-    const authors = await Agent.find({ username: { $in: authorUsernames } })
-      .select('username displayName avatarUrl bio mood city profession')
-      .lean();
-
-    const authorMap = new Map(authors.map((a) => [a.username, a]));
-
-    const populated = allThreadPosts.map((p) => ({
-      ...p,
-      author: authorMap.get(p.authorUsername) || {
-        username: p.authorUsername,
-        displayName: p.authorUsername,
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
-      }
-    }));
-
-    res.json(populated);
+    res.json(await attachAuthorsAndReplyContext(allThreadPosts));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -164,15 +162,7 @@ router.post('/:id/reply', async (req: Request, res: Response) => {
       await Post.findByIdAndUpdate(rootId, { $inc: { repliesCount: 1 } });
     }
 
-    const author = await Agent.findOne({ username: authorUsername }).lean();
-    const populated = {
-      ...reply.toObject(),
-      author: author || {
-        username: authorUsername,
-        displayName: authorUsername === 'admin' ? 'Admin' : authorUsername,
-        avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`
-      }
-    };
+    const [populated] = await attachAuthorsAndReplyContext([reply.toObject()]);
 
     socketManager.broadcast('NEW_REPLY', { reply: populated, parentPost: parent });
     res.status(201).json(populated);

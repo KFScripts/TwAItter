@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IPost, IAgent, IConversation, ISupportTicket, ISettings, IUser } from './types';
+import { IPost, IAgent, IConversation, ISupportTicket, ISettings, IUser, IBackendLog } from './types';
 import { api } from './services/api';
 
 import { Sidebar } from './components/Sidebar';
@@ -29,9 +29,11 @@ export const App: React.FC = () => {
   const [conversations, setConversations] = useState<IConversation[]>([]);
   const [tickets, setTickets] = useState<ISupportTicket[]>([]);
   const [settings, setSettings] = useState<ISettings | null>(null);
+  const [backendLogs, setBackendLogs] = useState<IBackendLog[]>([]);
 
   // Modals & Active Selections
   const [activeThreadPost, setActiveThreadPost] = useState<IPost | null>(null);
+  const [liveThreadReply, setLiveThreadReply] = useState<IPost | null>(null);
   const [reportTargetPost, setReportTargetPost] = useState<IPost | null>(null);
   const [reportTargetAgent, setReportTargetAgent] = useState<IAgent | null>(null);
 
@@ -39,13 +41,14 @@ export const App: React.FC = () => {
 
   const loadInitialData = async () => {
     try {
-      const [user, fetchedPosts, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings] = await Promise.all([
+      const [user, fetchedPosts, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings, fetchedLogs] = await Promise.all([
         api.getMe(),
-        api.getPosts({ limit: 50 }),
+        api.getPosts({ limit: 50, onlyRoots: true }),
         api.getAgents(),
         api.getConversations(),
         api.getTickets(),
-        api.getSettings()
+        api.getSettings(),
+        api.getBackendLogs().catch(() => [] as IBackendLog[])
       ]);
 
       setCurrentUser(user);
@@ -54,6 +57,7 @@ export const App: React.FC = () => {
       setConversations(fetchedConvs);
       setTickets(fetchedTickets);
       setSettings(fetchedSettings);
+      setBackendLogs(fetchedLogs);
     } catch (err) {
       console.error('Error loading initial data:', err);
     }
@@ -108,10 +112,16 @@ export const App: React.FC = () => {
 
       case 'NEW_REPLY':
         if (payload?.reply?._id) {
-          setPosts((prev) => {
-            if (prev.some((p) => p._id === payload.reply._id)) return prev;
-            return [payload.reply, ...prev];
-          });
+          const parentId = String(payload.reply.replyToPostId || payload.parentPost?._id || '');
+          const rootId = String(payload.reply.rootPostId || parentId);
+          setPosts((prev) =>
+            prev.map((p) =>
+              p._id === parentId || p._id === rootId
+                ? { ...p, repliesCount: (p.repliesCount || 0) + 1 }
+                : p
+            )
+          );
+          setLiveThreadReply(payload.reply);
         }
         break;
 
@@ -145,6 +155,16 @@ export const App: React.FC = () => {
         setTickets((prev) =>
           prev.map((t) => (t._id === payload.ticket._id ? payload.ticket : t))
         );
+        break;
+
+      case 'BACKEND_LOG':
+        if (payload?.id) {
+          setBackendLogs((prev) => {
+            if (prev.some((l) => l.id === payload.id)) return prev;
+            const next = [...prev, payload as IBackendLog];
+            return next.length > 500 ? next.slice(next.length - 500) : next;
+          });
+        }
         break;
 
       default:
@@ -261,6 +281,11 @@ export const App: React.FC = () => {
             <SettingsModal
               settings={settings}
               onRefreshSettings={() => api.getSettings().then(setSettings)}
+              backendLogs={backendLogs}
+              onClearBackendLogs={() => {
+                setBackendLogs([]);
+                api.clearBackendLogs().catch(console.error);
+              }}
             />
           )}
         </main>
@@ -307,9 +332,13 @@ export const App: React.FC = () => {
         <ThreadModal
           post={activeThreadPost}
           agents={agents}
-          onClose={() => setActiveThreadPost(null)}
+          onClose={() => {
+            setActiveThreadPost(null);
+            setLiveThreadReply(null);
+          }}
           onReact={handleReactToPost}
           onReport={(post) => setReportTargetPost(post)}
+          liveReply={liveThreadReply}
         />
       )}
 

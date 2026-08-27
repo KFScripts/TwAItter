@@ -67,6 +67,7 @@ export interface IPost {
   content: string;
   mediaUrl?: string | null;
   replyToPostId?: string | null;
+  replyToAuthorUsername?: string | null;
   rootPostId?: string | null;
   quotePostId?: string | null;
   reactions: IReaction[];
@@ -178,4 +179,11 @@ export interface IPlatformStats {
   totalDMs: number;
   pendingTickets: number;
   totalTickets: number;
+}
+
+export interface IBackendLog {
+  id: number;
+  ts: string;
+  level: 'log' | 'info' | 'warn' | 'error';
+  message: string;
 }

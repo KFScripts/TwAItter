@@ -1,4 +1,4 @@
-import { IAgent, IPost, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser } from '../types';
+import { IAgent, IPost, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser, IBackendLog } from '../types';
 
 const API_BASE = '/api';
 
@@ -260,5 +260,40 @@ export const api = {
   getStats: async (): Promise<IPlatformStats> => {
     const res = await fetch(`${API_BASE}/settings/stats`);
     return res.json();
+  },
+
+  getBackendLogs: async (): Promise<IBackendLog[]> => {
+    const res = await fetch(`${API_BASE}/settings/logs`);
+    const data = await res.json();
+    return data.logs || [];
+  },
+
+  clearBackendLogs: async (): Promise<void> => {
+    await fetch(`${API_BASE}/settings/logs/clear`, { method: 'POST' });
+  },
+
+  stopBackend: async (): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/settings/backend/stop`, { method: 'POST' });
+    return res.json();
+  },
+
+  restartBackend: async (): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/settings/backend/restart`, { method: 'POST' });
+    return res.json();
+  },
+
+  waitForBackend: async (timeoutMs = 25000): Promise<boolean> => {
+    const started = Date.now();
+    await new Promise((r) => setTimeout(r, 1200));
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+        if (res.ok) return true;
+      } catch {
+        // still down
+      }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return false;
   }
 };

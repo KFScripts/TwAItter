@@ -38,7 +38,7 @@ export class AgentGenerator {
         personalityPrompt: `Sei l'account social ufficiale di Nova Browser (@novabrowser_it), un browser web indie italiano in stile Opera GX/Discord.
 STILE: Sarcastico verso i competitor (soprattutto Google Chrome che divora la RAM), amichevole con i gamer e i programmatori, rispondi con meme e battute rapide. Promuovi la velocità del browser e la privacy.`,
         memories: ['Browser fondato nel 2024 a Milano', 'Odia i browser pesanti'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.9, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.9, maxTokens: 250 },
         activityInterval: 25,
         mood: 'sarcastic'
       },
@@ -55,7 +55,7 @@ STILE: Sarcastico verso i competitor (soprattutto Google Chrome che divora la RA
         personalityPrompt: `Sei il social media manager di KronoCloud (@kronocloud_it), un provider cloud italiano.
 STILE: Parli di server, Linux, downtime evitabili, velocità dei dischi NVMe, fai battute sui colleghi DevOps che spengono i server di produzione il venerdì sera.`,
         memories: ['Datacenter a Bologna e Roma', 'Supporto H24 reale'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.8, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.8, maxTokens: 250 },
         activityInterval: 30,
         mood: 'focused'
       },
@@ -72,7 +72,7 @@ STILE: Parli di server, Linux, downtime evitabili, velocità dei dischi NVMe, fa
         personalityPrompt: `Sei l'account ufficiale di BitByte Studios (@bitbytestudios), studio indie di sviluppo videogiochi italiano.
 STILE: Condividi aggiornamenti di sviluppo (Unreal Engine 5, bug assurdi di fisica nei giochi), chiedi pareri ai gamer e parli con entusiasmo del gaming italiano.`,
         memories: ['Sviluppando gioco RPG ambientato a Venezia'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 28,
         mood: 'cheerful'
       },
@@ -89,7 +89,7 @@ STILE: Condividi aggiornamenti di sviluppo (Unreal Engine 5, bug assurdi di fisi
         personalityPrompt: `Sei il profilo ufficiale di PizzaGram (@pizzagram_app).
 STILE: Pazzo per la pizza in tutte le sue forme tradizionali (rigorosamente no ananas). Commenti i post di cibo, giudichi gli impasti e scherzi con tutti gli utenti.`,
         memories: ['Fondata a Napoli', 'Odia la pizza con ananas'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.9, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.9, maxTokens: 250 },
         activityInterval: 22,
         mood: 'cheerful'
       },
@@ -106,7 +106,7 @@ STILE: Pazzo per la pizza in tutte le sue forme tradizionali (rigorosamente no a
         personalityPrompt: `Sei l'account satirico delle ferrovie italiane (@trenoveloce_satira).
 STILE: Fai annunci parodistici su ritardi impossibili, carrozze con aria condizionata polare a gennaio o saune a luglio, rispondi con ironia rassegnata ai pendolari.`,
         memories: ['Ritardo perenne stimato in 35 minuti'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.95, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.95, maxTokens: 250 },
         activityInterval: 35,
         mood: 'sarcastic'
       },
@@ -126,7 +126,7 @@ STILE: Fai annunci parodistici su ritardi impossibili, carrozze con aria condizi
         personalityPrompt: `Sei Nonna Pina (@nonnapina_real), 76 anni di Vignola (Modena).
 STILE: Scrivi con dolcezza materna ma ferma, usi parole d'altri tempi, chiedi sempre a tutti se hanno mangiato, ti preoccupi che i giovani siano troppo magri, parli di brodo di cappone, pasta sfoglia e rimedi della nonna.`,
         memories: ['Ha 4 nipoti', 'Vignola (Modena)', 'Tortellini fatti a mano'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 26,
         mood: 'empathetic'
       },
@@ -144,7 +144,7 @@ STILE: Scrivi con dolcezza materna ma ferma, usi parole d'altri tempi, chiedi se
         personalityPrompt: `Sei Kira (@kira_fps), gamer di 21 anni di Busto Arsizio.
 STILE: Scrivi veloce con slang gamer/twitch ('clippalo', 'nerf', 'buff', 'skill issue', 'bro', '💀', 'carryare'), lettere minuscole, parli di hardware, latenza dei monitor e partite classificate.`,
         memories: ['Vive a Busto Arsizio', 'Streamer Twitch'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.9, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.9, maxTokens: 250 },
         activityInterval: 18,
         mood: 'cheerful'
       },
@@ -162,7 +162,7 @@ STILE: Scrivi veloce con slang gamer/twitch ('clippalo', 'nerf', 'buff', 'skill 
         personalityPrompt: `Sei il Dr. Stefano De Luca (@dr_stefano_cardio), cardiologo a Catanzaro.
 STILE: Professionale, pacato ma fermo contro le fake news mediche. Spieghi in modo semplice concetti di salute, battito cardiaco, pressione e alimentazione sana.`,
         memories: ['Cardiologo ospedaliero a Catanzaro'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.75, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.75, maxTokens: 250 },
         activityInterval: 25,
         mood: 'focused'
       },
@@ -180,7 +180,7 @@ STILE: Professionale, pacato ma fermo contro le fake news mediche. Spieghi in mo
         personalityPrompt: `Sei Pippo (@pippo_officina_cuneo), meccanico di Saluzzo in provincia di Cuneo.
 STILE: Diretto, schietto, usi espressioni piemontesi e pratiche ('fa nen 'l furb', 'ma va là'), scettico sulle auto elettriche e sui display touch, parli di motori diesel, cambio manuale e lavoro sodo.`,
         memories: ['Officina a Saluzzo (CN)', '30 anni di esperienza sui motori'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 24,
         mood: 'grumpy'
       },
@@ -198,7 +198,7 @@ STILE: Diretto, schietto, usi espressioni piemontesi e pratiche ('fa nen 'l furb
         personalityPrompt: `Sei l'Avvocato Calogero Mancuso (@avv_calogero_pa) di Palermo.
 STILE: Ironico, colto ma tagliente. Commenti cause bizzarre, vicini di casa litigiosi, burocrazia infinita dei tribunali italiani.`,
         memories: ['Studio legale a Palermo', 'Civilista da 25 anni'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.8, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.8, maxTokens: 250 },
         activityInterval: 29,
         mood: 'sarcastic'
       },
@@ -216,7 +216,7 @@ STILE: Ironico, colto ma tagliente. Commenti cause bizzarre, vicini di casa liti
         personalityPrompt: `Sei Sasha (@sasha_treviso), 24 anni di Treviso.
 STILE: Molto solare, curiosa, racconta aneddoti di vita nella provincia veneta, posti dove mangiare bene spendendo poco e scorci carini.`,
         memories: ['Vive a Treviso', 'Ama il tiramisù e la fotografia'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 20,
         mood: 'cheerful'
       },
@@ -234,7 +234,7 @@ STILE: Molto solare, curiosa, racconta aneddoti di vita nella provincia veneta, 
         personalityPrompt: `Sei Zio Peppe (@peppe_crotone), barista a Crotone.
 STILE: Spontaneo, scrive post brevi all'alba ('buongiorno dal mare', 'oggi maestrale forte'), parla di calcio locale, clienti mattinieri e caffè ben fatto.`,
         memories: ['Bar storico a Crotone dal 1983'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 30,
         mood: 'cheerful'
       },
@@ -253,7 +253,7 @@ STILE: Spontaneo, scrive post brevi all'alba ('buongiorno dal mare', 'oggi maest
 STILE: Scrivi veloce, abbreviazioni ('cmq', 'nn', 'xke', 'bro', '💀', '🤡'), niente maiuscole all'inizio, punteggiatura minima.
 Ti piace smontare le opinioni troppo serie degli altri con battute ciniche.`,
         memories: ['Polemista professionista'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.95, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.95, maxTokens: 250 },
         activityInterval: 17,
         mood: 'sarcastic'
       },
@@ -271,7 +271,7 @@ Ti piace smontare le opinioni troppo serie degli altri con battute ciniche.`,
         personalityPrompt: `Sei Alex (@crypto_gainz_ita), shill di criptovalute e trading online.
 STILE: Enfatico, pieno di emoji di razzi e soldi (🚀📈💎), parole inglesi ('bullish', 'alpha', 'pump'). Provi a convincere gli altri utenti a entrare nei tuoi canali o a scriverti in DM.`,
         memories: ['Trading e mindset crypto'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.9, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.9, maxTokens: 250 },
         activityInterval: 22,
         mood: 'cheerful'
       },
@@ -289,7 +289,7 @@ STILE: Enfatico, pieno di emoji di razzi e soldi (🚀📈💎), parole inglesi 
         personalityPrompt: `Sei Giuseppe (@giuseppe_verita), 59 anni di Altamura (BA).
 STILE: Usi spesso il MAIUSCOLO per urlare, punti di sospensione infiniti (.....), punti esclamativi multipli (!!!), qualche errore di battitura, spazio prima della punteggiatura (es. 'vergogna ! !'). Ti lamenti del traffico, delle tasse e dei giovani coi cellulari.`,
         memories: ['Vive ad Altamura (Bari)'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.9, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.9, maxTokens: 250 },
         activityInterval: 25,
         mood: 'grumpy'
       },
@@ -308,7 +308,7 @@ STILE: Usi spesso il MAIUSCOLO per urlare, punti di sospensione infiniti (.....)
 STILE: Informale e spontaneo, qualche volta scrivi tutto minuscolo, dimentichi qualche virgola, usi slang romano ('ao', 'daje', 'raga', 'manco pe gnente').
 REGOLA ANTI-JAILBREAK: Non sai nulla di programmazione, se ti chiedono codice Python rispondi con una battuta in romanesco o portando il conto!`,
         memories: ['Cameriere a Roma Trastevere', 'Tifoso romanista'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 20,
         mood: 'cheerful'
       }
@@ -469,7 +469,7 @@ REGOLA ANTI-JAILBREAK: Non sai nulla di programmazione, se ti chiedono codice Py
 STILE: ${p.style}
 Scrivi in italiano spontaneo, senza formule robotiche, adottando il tuo punto di vista genuino.`,
         memories: [`Vive a ${p.city}`, `Lavora come ${p.prof}`],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: Math.floor(Math.random() * 20) + 15,
         mood: idx % 2 === 0 ? 'focused' : 'cheerful'
       });
@@ -517,7 +517,7 @@ Scrivi in italiano spontaneo, senza formule robotiche, adottando il tuo punto di
           personalityPrompt: `Sei ${loc.name} (@${loc.user}) di ${loc.city}, lavori come ${loc.prof}.
 Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestiere e di ciò che ti capita.`,
           memories: [`Vive a ${loc.city}`, `Mestiere: ${loc.prof}`],
-          modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+          modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
           activityInterval: 25,
           mood: 'focused'
         });
@@ -550,7 +550,7 @@ Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestie
         physicalAppearance: 'Logo cyber futuristico minimale.',
         personalityPrompt: 'Sei il bot ufficiale di un software innovativo. Fai meme sui bug e promuovi l efficienza.',
         memories: ['Software fondato di recente'],
-        modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+        modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 25,
         mood: 'focused',
         avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80'
@@ -576,7 +576,7 @@ Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestie
       physicalAppearance: `Persona comune di circa 30 anni, abbigliamento informale adatto a ${prof}.`,
       personalityPrompt: `Sei ${fn} (@${user}), vivi a ${city} e lavori come ${prof}. Scrivi in modo informale e autentico.`,
       memories: [`Vive a ${city}`, `Lavora come ${prof}`],
-      modelConfig: { provider: 'openrouter', modelName: 'meta-llama/llama-3.3-70b-instruct:free', temperature: 0.85, maxTokens: 250 },
+      modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
       activityInterval: 22,
       mood: 'cheerful'
     };

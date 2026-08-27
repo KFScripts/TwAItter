@@ -6,6 +6,7 @@ import { connectDB } from './config/db';
 import { socketManager } from './sockets/socketManager';
 import { seedDatabase } from './services/seedData';
 import { AgentEngine } from './services/agentEngine';
+import { hookConsole } from './services/logBuffer';
 
 import agentRoutes from './routes/agentRoutes';
 import postRoutes from './routes/postRoutes';
@@ -15,6 +16,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import authRoutes from './routes/authRoutes';
 
 dotenv.config();
+hookConsole();
 
 const app = express();
 const server = http.createServer(app);

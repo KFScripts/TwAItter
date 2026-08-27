@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ISettings, IPlatformStats, IModelConfigItem } from '../types';
+import { ISettings, IPlatformStats, IModelConfigItem, IBackendLog } from '../types';
 import { api } from '../services/api';
-import { Key, Gauge, Image, Globe, Plus, Trash2, Check, Sparkles, Eye, Users } from 'lucide-react';
+import { BackendLogConsole } from './BackendLogConsole';
+import { Key, Gauge, Image, Globe, Plus, Trash2, Check, Sparkles, Eye, Users, Power, RotateCcw, Server } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: ISettings | null;
   onRefreshSettings: () => void;
+  backendLogs: IBackendLog[];
+  onClearBackendLogs: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
-  onRefreshSettings
+  onRefreshSettings,
+  backendLogs,
+  onClearBackendLogs
 }) => {
   const [language, setLanguage] = useState('it');
   const [defaultProvider, setDefaultProvider] = useState('openrouter');
@@ -47,6 +52,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isPopulating, setIsPopulating] = useState(false);
   const [populateMsg, setPopulateMsg] = useState('');
+  const [backendBusy, setBackendBusy] = useState<'stop' | 'restart' | null>(null);
+  const [backendMsg, setBackendMsg] = useState('');
+  const [backendOnline, setBackendOnline] = useState(true);
 
   useEffect(() => {
     if (settings) {
@@ -92,6 +100,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleRemoveModelFromPool = (index: number) => {
     setTextModelPool((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleStopBackend = async () => {
+    if (backendBusy) return;
+    setBackendBusy('stop');
+    setBackendMsg('Arresto in corso...');
+    try {
+      const res = await api.stopBackend();
+      setBackendMsg(res.message || 'Backend in arresto.');
+      setTimeout(() => setBackendOnline(false), 1500);
+    } catch {
+      setBackendOnline(false);
+      setBackendMsg('Backend spento (o già offline). Per riavviarlo usa start-backend.bat.');
+    } finally {
+      setBackendBusy(null);
+    }
+  };
+
+  const handleRestartBackend = async () => {
+    if (backendBusy) return;
+    setBackendBusy('restart');
+    setBackendMsg('Riavvio in corso, attendo che la porta 5000 torni libera...');
+    try {
+      await api.restartBackend();
+    } catch {
+      // expected: the process dies before the response always lands
+    }
+    setBackendOnline(false);
+    const up = await api.waitForBackend();
+    setBackendOnline(up);
+    setBackendMsg(up ? 'Backend riavviato e online.' : 'Riavvio non confermato. Avvia start-backend.bat se resta spento.');
+    if (up) onRefreshSettings();
+    setBackendBusy(null);
   };
 
   const handlePopulate50 = async () => {
@@ -193,6 +234,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
         )}
+
+        <div className="bg-twitter-card border border-twitter-border rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-twitter-border pb-3">
+            <div className="flex items-center gap-2 text-white font-bold text-base">
+              <Server className="w-5 h-5 text-twitter-blue" />
+              <span>Processo Backend</span>
+            </div>
+            <span
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                backendOnline ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+              }`}
+            >
+              {backendBusy ? 'IN TRANSIZIONE' : backendOnline ? 'ONLINE' : 'OFFLINE'}
+            </span>
+          </div>
+
+          <p className="text-xs text-twitter-muted">
+            Stoppa il server Node sulla porta 5000 (libera il bind) oppure riavvialo in una nuova finestra. Utile quando
+            npm run dev dice che la porta è già occupata.
+          </p>
+
+          {backendMsg && (
+            <div className="bg-[#121418] border border-twitter-border text-twitter-muted px-4 py-2.5 rounded-xl text-xs">
+              {backendMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleStopBackend}
+              disabled={!!backendBusy}
+              className="flex items-center justify-center gap-2 bg-red-500/15 hover:bg-red-500/25 disabled:opacity-50 text-red-300 font-bold text-sm px-4 py-2.5 rounded-full transition border border-red-500/30"
+            >
+              <Power className="w-4 h-4" />
+              {backendBusy === 'stop' ? 'Arresto...' : 'Stoppa Backend'}
+            </button>
+            <button
+              type="button"
+              onClick={handleRestartBackend}
+              disabled={!!backendBusy}
+              className="flex items-center justify-center gap-2 bg-twitter-blue hover:bg-twitter-hover disabled:opacity-50 text-white font-bold text-sm px-4 py-2.5 rounded-full transition"
+            >
+              <RotateCcw className="w-4 h-4" />
+              {backendBusy === 'restart' ? 'Riavvio...' : 'Riavvia Backend'}
+            </button>
+          </div>
+        </div>
+
+        <BackendLogConsole logs={backendLogs} onClear={onClearBackendLogs} />
 
         {/* Form */}
         <form onSubmit={handleSave} className="space-y-6">

@@ -46,6 +46,7 @@ export const Feed: React.FC<FeedProps> = ({
   };
 
   const filteredPosts = posts.filter((post) => {
+    if (post.replyToPostId) return false;
     if (activeTagFilter) {
       const matchInTags = post.tags?.some((t) => t.toLowerCase() === activeTagFilter.toLowerCase());
       const matchInContent = post.content.toLowerCase().includes(`#${activeTagFilter.toLowerCase()}`);

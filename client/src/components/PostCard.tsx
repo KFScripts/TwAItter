@@ -11,6 +11,8 @@ interface PostCardProps {
   onReport: (post: IPost) => void;
   onSelectTag?: (tag: string) => void;
   onSelectUser?: (username: string) => void;
+  compact?: boolean;
+  highlighted?: boolean;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
@@ -20,7 +22,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   onViewThread,
   onReport,
   onSelectTag,
-  onSelectUser
+  onSelectUser,
+  compact = false,
+  highlighted = false
 }) => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -106,7 +110,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   };
 
   return (
-    <article className="border-b border-twitter-border hover:bg-[#080808] transition duration-150 p-4 relative group">
+    <article
+      className={`${compact ? 'border-b-0 p-3' : 'border-b border-twitter-border p-4'} hover:bg-[#080808] transition duration-150 relative group ${
+        highlighted ? 'bg-[#121417]/80 rounded-xl border border-twitter-blue/30' : ''
+      }`}
+    >
       <div className="flex gap-3">
         {/* Avatar */}
         <div className="flex-shrink-0">
@@ -174,6 +182,28 @@ export const PostCard: React.FC<PostCardProps> = ({
               )}
             </div>
           </div>
+
+          {post.replyToPostId && (
+            <p className="text-xs text-twitter-muted mt-0.5">
+              In risposta a{' '}
+              {post.replyToAuthorUsername ? (
+                <span
+                  className="text-twitter-blue hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onSelectUser) onSelectUser(post.replyToAuthorUsername!);
+                    else onViewThread(post);
+                  }}
+                >
+                  @{post.replyToAuthorUsername}
+                </span>
+              ) : (
+                <span className="hover:underline cursor-pointer" onClick={() => onViewThread(post)}>
+                  un post
+                </span>
+              )}
+            </p>
+          )}
 
           {/* Post Text with Interactive Hashtags & Mentions */}
           <p

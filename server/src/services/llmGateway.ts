@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { IAgent } from '../models/Agent';
 import { Settings } from '../models/Settings';
+import { repairJsonObject } from '../utils/jsonRepair';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -20,15 +21,24 @@ export class LLMGateway {
     options: LLMRequestOptions
   ): Promise<string> {
     const settings = await Settings.findOne();
+    const agentCfg = agent.modelConfig;
+    const hasPersonalGateway = !!(agentCfg?.apiKey || agentCfg?.baseUrl);
 
-    let provider = agent.modelConfig?.provider || settings?.defaultProvider || 'openrouter';
-    let model = agent.modelConfig?.modelName || settings?.defaultModel || 'meta-llama/llama-3.3-70b-instruct:free';
-    let apiKey = agent.modelConfig?.apiKey || settings?.defaultApiKey || process.env.DEFAULT_LLM_API_KEY || '';
-    let customBaseUrl = agent.modelConfig?.baseUrl || settings?.defaultBaseUrl || process.env.DEFAULT_LLM_BASE_URL || '';
-    let responseFormat = agent.modelConfig?.responseFormat || settings?.defaultResponseFormat || 'openai_chat';
+    let provider = settings?.defaultProvider || 'openrouter';
+    let model = settings?.defaultModel || 'meta-llama/llama-3.3-70b-instruct:free';
+    let apiKey = settings?.defaultApiKey || process.env.DEFAULT_LLM_API_KEY || '';
+    let customBaseUrl = settings?.defaultBaseUrl || process.env.DEFAULT_LLM_BASE_URL || '';
+    let responseFormat = settings?.defaultResponseFormat || 'openai_chat';
 
-    // Model pool resolution
-    if (settings?.textModelPool && settings.textModelPool.length > 0 && !agent.modelConfig?.apiKey) {
+    if (hasPersonalGateway) {
+      if (agentCfg.provider) provider = agentCfg.provider;
+      if (agentCfg.modelName) model = agentCfg.modelName;
+      if (agentCfg.apiKey) apiKey = agentCfg.apiKey;
+      if (agentCfg.baseUrl) customBaseUrl = agentCfg.baseUrl;
+      if (agentCfg.responseFormat) responseFormat = agentCfg.responseFormat;
+    }
+
+    if (settings?.textModelPool && settings.textModelPool.length > 0 && !agentCfg?.apiKey) {
       const poolItem = settings.textModelPool[Math.floor(Math.random() * settings.textModelPool.length)];
       if (poolItem) {
         provider = poolItem.provider;
@@ -59,7 +69,7 @@ export class LLMGateway {
             model,
             system: systemMessage,
             messages: userMessages,
-            max_tokens: options.maxTokens ?? 350,
+            max_tokens: options.maxTokens ?? (options.responseFormatJson ? 800 : 350),
             temperature: options.temperature ?? 0.85
           },
           {
@@ -73,8 +83,8 @@ export class LLMGateway {
         );
 
         console.log(`[LLM Gateway] Risposta ricevuta con successo da Anthropic.`);
-        const choice = response.data?.content?.[0]?.text;
-        if (typeof choice === 'string') return choice.trim();
+        const choice = this.extractTextFromResponse(response.data);
+        if (choice) return choice;
       } else if (responseFormat === 'openai_responses') {
         let endpoint = customBaseUrl;
         if (!endpoint) endpoint = 'https://api.openai.com/v1/responses';
@@ -95,13 +105,8 @@ export class LLMGateway {
         });
 
         console.log(`[LLM Gateway] Risposta ricevuta con successo da Responses API.`);
-        const choice =
-          response.data?.output?.[0]?.content?.[0]?.text ||
-          response.data?.output_text ||
-          response.data?.response ||
-          response.data?.choices?.[0]?.message?.content;
-
-        if (typeof choice === 'string') return choice.trim();
+        const choice = this.extractTextFromResponse(response.data);
+        if (choice) return choice;
       } else if (responseFormat === 'openai_completion') {
         const endpoint = customBaseUrl || 'https://api.openai.com/v1/completions';
         console.log(`[LLM Gateway] [OpenAI Legacy Completion] -> ${endpoint} (Modello: ${model})`);
@@ -113,7 +118,7 @@ export class LLMGateway {
           {
             model,
             prompt,
-            max_tokens: options.maxTokens ?? 300,
+            max_tokens: options.maxTokens ?? (options.responseFormatJson ? 800 : 300),
             temperature: options.temperature ?? 0.85
           },
           {
@@ -126,8 +131,8 @@ export class LLMGateway {
         );
 
         console.log(`[LLM Gateway] Risposta ricevuta con successo da Completions.`);
-        const choice = response.data?.choices?.[0]?.text;
-        if (typeof choice === 'string') return choice.trim();
+        const choice = this.extractTextFromResponse(response.data);
+        if (choice) return choice;
       } else if (responseFormat === 'custom_direct') {
         const endpoint = customBaseUrl;
         if (!endpoint) throw new Error('Custom direct endpoint URL non specificato');
@@ -155,9 +160,8 @@ export class LLMGateway {
         );
 
         console.log(`[LLM Gateway] Risposta ricevuta con successo da Custom Endpoint.`);
-        if (typeof response.data === 'string') return response.data.trim();
-        const choice = response.data?.text || response.data?.output || response.data?.response || response.data?.result || response.data?.message;
-        if (typeof choice === 'string') return choice.trim();
+        const choice = this.extractTextFromResponse(response.data);
+        if (choice) return choice;
       } else {
         // Standard OpenAI Chat / OpenRouter / Groq / Ollama
         let endpoint = customBaseUrl;
@@ -202,7 +206,7 @@ export class LLMGateway {
           model,
           messages: options.messages,
           temperature: options.temperature ?? 0.85,
-          max_tokens: options.maxTokens ?? 300
+          max_tokens: options.maxTokens ?? (options.responseFormatJson ? 800 : 300)
         };
 
         if (options.responseFormatJson) {
@@ -211,8 +215,8 @@ export class LLMGateway {
 
         const response = await axios.post(endpoint, payload, { headers, timeout: 25000 });
         console.log(`[LLM Gateway] Risposta ricevuta con successo.`);
-        const choice = response.data?.choices?.[0]?.message?.content;
-        if (typeof choice === 'string') return choice.trim();
+        const choice = this.extractTextFromResponse(response.data);
+        if (choice) return choice;
       }
     } catch (error: any) {
       const errDetails = error.response?.data ? JSON.stringify(error.response.data) : error.message;
@@ -221,5 +225,97 @@ export class LLMGateway {
     }
 
     throw new Error('Nessuna risposta valida ricevuta dal modello');
+  }
+
+  private static extractTextFromResponse(data: any): string | null {
+    if (!data) return null;
+    if (typeof data === 'string') return this.preferJsonPayload(data);
+
+    const message = data?.choices?.[0]?.message || data?.message;
+    const contentCandidates = [
+      this.coerceContent(message?.content),
+      this.coerceContent(data?.output_text),
+      this.coerceContent(data?.content?.[0]?.text),
+      this.coerceContent(data?.output?.[0]?.content?.[0]?.text),
+      this.coerceContent(data?.choices?.[0]?.text),
+      this.coerceContent(data?.text),
+      this.coerceContent(data?.output),
+      this.coerceContent(data?.response),
+      this.coerceContent(data?.result)
+    ].filter((v): v is string => !!v);
+
+    for (const candidate of contentCandidates) {
+      const preferred = this.preferJsonPayload(candidate);
+      if (preferred) return preferred;
+    }
+
+    const reasoningFallback = [
+      this.coerceContent(message?.reasoning_content),
+      this.coerceContent(message?.reasoning),
+      this.coerceContent(data?.reasoning)
+    ].filter((v): v is string => !!v);
+
+    for (const candidate of reasoningFallback) {
+      const preferred = this.preferJsonPayload(candidate);
+      if (preferred && preferred.trim().startsWith('{')) return preferred;
+    }
+
+    return contentCandidates[0] ? this.preferJsonPayload(contentCandidates[0]) : null;
+  }
+
+  private static coerceContent(value: unknown): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((part) => {
+          if (typeof part === 'string') return part;
+          if (part && typeof part === 'object') {
+            const rec = part as Record<string, unknown>;
+            if (rec.type === 'thinking' || rec.type === 'reasoning') return '';
+            if (typeof rec.text === 'string') return rec.text;
+            if (typeof rec.content === 'string') return rec.content;
+          }
+          return '';
+        })
+        .join('\n')
+        .trim();
+      return joined || null;
+    }
+    return null;
+  }
+
+  private static preferJsonPayload(raw: string): string {
+    const stripped = raw
+      .replace(/<(?:think|thinking|reason|reasoning|analysis)[^>]*>[\s\S]*?<\/(?:think|thinking|reason|reasoning|analysis)>/gi, '')
+      .replace(/```(?:json)?\s*([\s\S]*?)```/gi, '$1')
+      .trim();
+
+    const jsonStart = stripped.indexOf('{');
+    if (jsonStart >= 0) {
+      const slice = stripped.slice(jsonStart);
+      const jsonEnd = slice.lastIndexOf('}');
+      const maybeJson = jsonEnd > 0 ? slice.slice(0, jsonEnd + 1) : slice;
+      try {
+        const parsed = JSON.parse(maybeJson);
+        if (parsed && typeof parsed === 'object' && typeof parsed.action === 'string') {
+          return maybeJson;
+        }
+      } catch {
+        const repaired = repairJsonObject(slice);
+        if (repaired) {
+          try {
+            const parsed = JSON.parse(repaired);
+            if (parsed && typeof parsed === 'object' && typeof parsed.action === 'string') {
+              return repaired;
+            }
+          } catch {
+            // keep stripped text
+          }
+        }
+      }
+    }
+
+    return stripped;
   }
 }

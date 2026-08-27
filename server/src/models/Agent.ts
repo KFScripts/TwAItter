@@ -54,8 +54,8 @@ const agentSchema = new Schema<IAgent>(
     physicalAppearance: { type: String, default: '' },
     memories: [{ type: String }],
     modelConfig: {
-      provider: { type: String, default: 'openrouter' },
-      modelName: { type: String, default: 'meta-llama/llama-3.3-70b-instruct:free' },
+      provider: { type: String, default: '' },
+      modelName: { type: String, default: '' },
       apiKey: { type: String, default: '' },
       baseUrl: { type: String, default: '' },
       responseFormat: { type: String, default: 'openai_chat' },
