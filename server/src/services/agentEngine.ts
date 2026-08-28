@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { Agent, IAgent } from '../models/Agent';
+import { User } from '../models/User';
 import { Post, IPost } from '../models/Post';
 import { Reply, IReply } from '../models/Reply';
 import { DirectMessage } from '../models/DirectMessage';
@@ -179,11 +180,6 @@ export class AgentEngine {
         .limit(8)
         .lean();
 
-      const orderedHistory = conversationMessages.reverse().map((m) => ({
-        from: m.senderUsername,
-        text: m.content
-      }));
-
       const isSoftware = recipient.accountType === 'software';
       const randomFactor = Math.random();
 
@@ -243,14 +239,39 @@ export class AgentEngine {
           const language = settings?.language || process.env.PLATFORM_LANGUAGE || 'it';
           const memoriesText = recipient.memories?.length ? recipient.memories.join('\n- ') : 'Nessuno';
 
+          const isImageMedia = (mediaUrl?: string | null, attachmentType?: string | null) => {
+            if (!mediaUrl) return false;
+            if (attachmentType === 'image') return true;
+            if (attachmentType === 'file') return false;
+            return mediaUrl.startsWith('data:image') || /\.(jpeg|jpg|gif|png|webp|svg|bmp)($|\?)/i.test(mediaUrl);
+          };
+
           let attachmentDesc = '';
-          if (dm.mediaUrl && dm.attachmentType === 'image') {
+          if (isImageMedia(dm.mediaUrl, dm.attachmentType)) {
             try {
-              attachmentDesc = await VisionGateway.describeImage(dm.mediaUrl, language);
+              attachmentDesc = await VisionGateway.describeImage(dm.mediaUrl!, language);
             } catch {}
           } else if (dm.mediaUrl && dm.fileName) {
             attachmentDesc = `File allegato: ${dm.fileName} (${dm.fileSize ? Math.round(dm.fileSize / 1024) + ' KB' : ''})`;
           }
+
+          const orderedHistory = await Promise.all(
+            conversationMessages.reverse().map(async (m) => {
+              let text = m.content || '';
+              if (isImageMedia(m.mediaUrl, m.attachmentType)) {
+                try {
+                  const imgDesc = await VisionGateway.describeImage(m.mediaUrl!, language);
+                  text = text ? `${text}\n[Immagine allegata / OCR]: ${imgDesc}` : `[Immagine allegata / OCR]: ${imgDesc}`;
+                } catch {}
+              } else if (m.mediaUrl && m.fileName) {
+                text = text ? `${text}\n[File]: ${m.fileName}` : `[File]: ${m.fileName}`;
+              }
+              return {
+                from: m.senderUsername,
+                text
+              };
+            })
+          );
 
           const systemPrompt = `Sei @${recipient.username} (${recipient.displayName}), ${recipient.age || 28} anni, vivi a ${recipient.city || 'Italia'} e lavori come ${recipient.profession || 'cittadino'}.
 Personalità: ${recipient.personalityPrompt}
@@ -271,7 +292,7 @@ REGOLE DM ED EVOLUZIONE RELAZIONI:
 - DIVIETO ASSOLUTO DI FORMALISMO O FRASI DA BOT/ASSISTENTE AI (niente "Certamente", "Come posso aiutarti", "In merito a quanto affermi").
 - Rispondi come una persona vera e spontanea sui social: informale, breve (1-3 frasi), adatta al tuo carattere, umore e livello di confidenza con questa persona.
 - Puoi essere affettuoso/a con chi ti piace o è amico, sarcastico/a, freddo/a con chi non sopporti, o mandarlo a quel paese se ti offende o fa spam.
-- Se ti invia una foto o un allegato, commentalo direttamente con reazione naturale!
+- Se ti invia una foto, meme o screenshot, leggi attentamente la descrizione visiva e l'OCR di tutto il testo contenuto e commentalo direttamente con reazione naturale!
 - Se l'interlocutore è insopportabile, tossico, offensivo o ti fa arrabbiare seriamente, puoi decidere di BLOCCARLO impostando "blockUser": true.
 - Valuta come cambia il tuo sentimento dopo questo messaggio aggiornando "deltaAffinity" (-25 a +25), "deltaTrust" (-25 a +25) e "deltaRomance" (-20 a +20).
 - Se il messaggio non merita risposta o vuoi ignorarlo, imposta "ignore": true.
@@ -294,7 +315,7 @@ Restituisci ESCLUSIVAMENTE un JSON:
 ${JSON.stringify(orderedHistory, null, 2)}
 
 Ultimo messaggio da @${dm.senderUsername}: "${dm.content}"
-${attachmentDesc ? `[Allegato inviato nella chat]: ${attachmentDesc}` : ''}
+${attachmentDesc ? `[Allegato inviato nella chat / OCR]: ${attachmentDesc}` : ''}
 
 Rispondi al messaggio in DM (formato JSON):`;
 
@@ -336,7 +357,13 @@ Rispondi al messaggio in DM (formato JSON):`;
             return;
           }
 
-          if (parsed) {
+          if (parsed?.newMemory && typeof parsed.newMemory === 'string') {
+            await Agent.findByIdAndUpdate(recipient._id, {
+              $push: { memories: { $each: [parsed.newMemory.slice(0, 120)], $slice: -15 } }
+            });
+          }
+
+          if (parsed?.relationshipNotes || parsed?.deltaAffinity || parsed?.deltaTrust || parsed?.deltaRomance) {
             await RelationshipService.updateScores(
               recipient.username,
               dm.senderUsername,
@@ -357,12 +384,6 @@ Rispondi al messaggio in DM (formato JSON):`;
               recipientUsername: dm.senderUsername,
               content: String(replyText).slice(0, 300)
             });
-
-            if (parsed.newMemory && typeof parsed.newMemory === 'string') {
-              await Agent.findByIdAndUpdate(recipient._id, {
-                $push: { memories: { $each: [parsed.newMemory.slice(0, 120)], $slice: -15 } }
-              });
-            }
 
             socketManager.broadcast('NEW_DM', { message: newDm });
 
@@ -399,48 +420,71 @@ Rispondi al messaggio in DM (formato JSON):`;
     const settings = await Settings.findOne();
     const language = settings?.language || process.env.PLATFORM_LANGUAGE || 'it';
 
-    console.log(`\n==================================================`);
-    console.log(`[AI Engine Autonomo] Azione per: @${agent.username} (${agent.displayName})`);
-
-    await RelationshipService.evaluateAutonomousUnblock(agent);
-
-    const blockedUsernames = await RelationshipService.getBlockedUsernamesFor(agent.username);
-    const postFilter: any = {};
-    if (blockedUsernames.length > 0) {
-      postFilter.authorUsername = { $nin: blockedUsernames };
-    }
-
-    const recentRootPosts = await Post.find(postFilter).sort({ createdAt: -1 }).limit(8).lean();
-    const postIds = recentRootPosts.map((p) => p._id);
-    const recentReplies = await Reply.find({ postId: { $in: postIds }, authorUsername: { $nin: blockedUsernames } })
-      .sort({ createdAt: -1 })
-      .limit(15)
-      .lean();
-
-    const dmMessages = await DirectMessage.find({
-      $or: [{ senderUsername: agent.username }, { recipientUsername: agent.username }]
+    const recentRootPosts = await Post.find({
+      $or: [{ parentPostId: { $exists: false } }, { parentPostId: null }]
     })
       .sort({ createdAt: -1 })
-      .limit(16)
+      .limit(10)
       .lean();
 
-    const dmConversations: Record<string, any[]> = {};
-    dmMessages.reverse().forEach((m) => {
-      const partner = m.senderUsername === agent.username ? m.recipientUsername : m.senderUsername;
-      if (!dmConversations[partner]) dmConversations[partner] = [];
-      dmConversations[partner].push({
-        from: m.senderUsername,
-        text: m.content
-      });
-    });
-
-    const otherUsers = await Agent.find({ username: { $ne: agent.username }, isActive: true })
-      .select('username displayName bio city profession')
-      .limit(10)
+    const rootPostIds = recentRootPosts.map((p) => p._id);
+    const recentReplies = await Reply.find({ postId: { $in: rootPostIds } })
+      .sort({ createdAt: -1 })
+      .limit(20)
       .lean();
 
     const relationships = await RelationshipService.getSignificantRelationships(agent.username);
     const contextPayload = await NewsService.getCurrentContext(language, agent);
+
+    const recentDms = await DirectMessage.find({
+      $or: [{ senderUsername: agent.username }, { recipientUsername: agent.username }]
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    const dmConversations: Record<string, any[]> = {};
+    for (const dm of recentDms.reverse()) {
+      const partner = dm.senderUsername === agent.username ? dm.recipientUsername : dm.senderUsername;
+      if (!dmConversations[partner]) {
+        dmConversations[partner] = [];
+      }
+      dmConversations[partner].push({
+        from: dm.senderUsername,
+        to: dm.recipientUsername,
+        content: dm.content,
+        attachmentType: dm.attachmentType || undefined,
+        createdAt: dm.createdAt
+      });
+    }
+
+    const allOtherAgents = await Agent.find({ username: { $ne: agent.username }, isActive: true })
+      .select('username displayName bio city profession mood')
+      .limit(15)
+      .lean();
+
+    const realUsers = await User.find({ username: { $ne: agent.username } })
+      .select('username displayName bio city')
+      .limit(10)
+      .lean();
+
+    const otherUsers = [
+      ...allOtherAgents.map((a) => ({
+        username: a.username,
+        displayName: a.displayName,
+        bio: a.bio,
+        city: a.city,
+        profession: a.profession,
+        isAgent: true
+      })),
+      ...realUsers.map((u) => ({
+        username: u.username,
+        displayName: u.displayName,
+        bio: u.bio,
+        city: u.city,
+        isAgent: false
+      }))
+    ];
 
     const postContext = await Promise.all(
       recentRootPosts.map(async (p) => {
@@ -449,6 +493,23 @@ Rispondi al messaggio in DM (formato JSON):`;
           imageDescription = await VisionGateway.describeImage(p.mediaUrl, language);
         }
         const threadReplies = recentReplies.filter((r) => String(r.postId) === String(p._id));
+        const formattedReplies = await Promise.all(
+          threadReplies.map(async (r) => {
+            let replyImageDesc = '';
+            if (r.mediaUrl) {
+              replyImageDesc = await VisionGateway.describeImage(r.mediaUrl, language);
+            }
+            return {
+              replyId: r._id.toString(),
+              parentReplyId: r.parentReplyId ? r.parentReplyId.toString() : null,
+              author: `@${r.authorUsername}`,
+              content: r.content,
+              attachedImageDescription: replyImageDesc || undefined,
+              likes: r.likesCount
+            };
+          })
+        );
+
         return {
           id: p._id.toString(),
           author: `@${p.authorUsername}`,
@@ -457,13 +518,7 @@ Rispondi al messaggio in DM (formato JSON):`;
           likes: p.likesCount,
           commentsCount: p.repliesCount,
           isOwn: p.authorUsername === agent.username,
-          subthreadReplies: threadReplies.map((r) => ({
-            replyId: r._id.toString(),
-            parentReplyId: r.parentReplyId ? r.parentReplyId.toString() : null,
-            author: `@${r.authorUsername}`,
-            content: r.content,
-            likes: r.likesCount
-          }))
+          subthreadReplies: formattedReplies
         };
       })
     );
@@ -492,6 +547,7 @@ REGOLE SOCIAL NETWORK (STILE X / TWITTER UMANO AL 100%):
 - VITA SOCIALE, RELAZIONI E GOSSIP:
   * Hai amici, conoscenti, rivali e flirt: commenta la vita degli altri, prendi in giro con affetto o lancia frecciatine.
   * LEAK SCREENSHOT CHAT: Se trovi una chat DM recente ridicola, assurda o divertente, puoi pubblicarne lo screenshot nei post ("LEAK_CHAT" o "NEW_POST" con "leakChatPartnerUsername": "<username>") per fare gossip pubblico!
+- FOTO, MEME E SCREENSHOT: Nei post e commenti con immagini allegate è presente la descrizione visiva e l'OCR di tutto il testo contenuto. Commenta in modo pertinente i dettagli, le scritte o le battute presenti nell'immagine!
 - INTERAZIONI: È fortemente incoraggiato COMMENTARE (REPLY) o REAGIRE (REACT) ai post e ai commenti nella Timeline.
 - Lingua: ${language === 'it' ? 'ITALIANO' : language.toUpperCase()}.
 - Se alleghi una foto generata ("imagePrompt"), scrivi la descrizione in inglese. Altrimenti null.`;

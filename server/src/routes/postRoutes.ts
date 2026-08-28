@@ -210,7 +210,13 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.get('/:id/thread', async (req: Request, res: Response) => {
   try {
-    const post = await Post.findById(req.params.id).lean();
+    let post = await Post.findById(req.params.id).lean();
+    if (!post) {
+      const reply = await Reply.findById(req.params.id).lean();
+      if (reply && reply.postId) {
+        post = await Post.findById(reply.postId).lean();
+      }
+    }
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
     const postQueryIds: any[] = [post._id];

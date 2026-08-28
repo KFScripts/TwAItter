@@ -10,6 +10,14 @@ export class VisionGateway {
       return this.cache.get(imageUrl)!;
     }
 
+    if (imageUrl.startsWith('data:image/svg+xml') || imageUrl.trim().startsWith('<svg')) {
+      const svgDescription = this.extractSvgContent(imageUrl, language);
+      if (svgDescription) {
+        this.cache.set(imageUrl, svgDescription);
+        return svgDescription;
+      }
+    }
+
     const settings = await Settings.findOne();
     const provider = settings?.visionProvider || process.env.DEFAULT_VISION_PROVIDER || 'openrouter';
     const model = settings?.visionModel || process.env.DEFAULT_VISION_MODEL || 'google/gemini-2.0-flash-001';
@@ -39,8 +47,8 @@ export class VisionGateway {
 
       const promptText =
         language === 'it'
-          ? 'Fornisci una descrizione molto concisa (massimo 1-2 frasi) di cosa è raffigurato in questa immagine allegata al post social.'
-          : 'Provide a very concise description (1-2 sentences max) of what is depicted in this image attached to a social post.';
+          ? 'Analizza questa immagine in modo dettagliato ed esegui un OCR accurato di tutti i testi visibili.\nFornisci:\n1. [Descrizione Visiva]: Cosa è raffigurato (soggetti, persone, ambiente, oggetti, stile o contesto ironico/meme).\n2. [Testo / OCR]: Trascrivi fedelmente e integralmente ogni testo, titolo, didascalia, messaggio di chat, interfaccia o scritta visibile (se non c\'è testo scrivi "Nessun testo rilevato").'
+          : 'Analyze this image in detail and perform accurate OCR on all visible text.\nProvide:\n1. [Visual Description]: What is depicted (subjects, scene, objects, style, or meme context).\n2. [Text / OCR]: Exact transcription of all visible text, titles, captions, messages, UI elements, or labels (if none, state "No text detected").';
 
       const payload = {
         model,
@@ -56,10 +64,10 @@ export class VisionGateway {
             ]
           }
         ],
-        max_tokens: 150
+        max_tokens: 600
       };
 
-      const response = await axios.post(endpoint, payload, { headers, timeout: 20000 });
+      const response = await axios.post(endpoint, payload, { headers, timeout: 25000 });
       const description = response.data?.choices?.[0]?.message?.content?.trim() || '';
 
       if (description) {
@@ -75,18 +83,61 @@ export class VisionGateway {
     return fallback;
   }
 
+  private static extractSvgContent(svgDataUri: string, language: string): string {
+    try {
+      let rawSvg = '';
+      if (svgDataUri.startsWith('data:image/svg+xml;base64,')) {
+        rawSvg = Buffer.from(svgDataUri.replace('data:image/svg+xml;base64,', ''), 'base64').toString('utf8');
+      } else if (svgDataUri.startsWith('data:image/svg+xml;utf8,')) {
+        rawSvg = decodeURIComponent(svgDataUri.replace('data:image/svg+xml;utf8,', ''));
+      } else if (svgDataUri.startsWith('data:image/svg+xml,')) {
+        rawSvg = decodeURIComponent(svgDataUri.replace('data:image/svg+xml,', ''));
+      } else if (svgDataUri.trim().startsWith('<svg')) {
+        rawSvg = svgDataUri;
+      }
+
+      if (!rawSvg) return '';
+
+      const textMatches = rawSvg.match(/<text[^>]*>([\s\S]*?)<\/text>/gi) || [];
+      const extractedLines: string[] = [];
+
+      for (const tm of textMatches) {
+        const cleaned = tm
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (cleaned && !extractedLines.includes(cleaned)) {
+          extractedLines.push(cleaned);
+        }
+      }
+
+      if (extractedLines.length > 0) {
+        return language === 'it'
+          ? `[Grafica/Screenshot SVG - Testo rilevato (OCR)]: ${extractedLines.join(' | ')}`
+          : `[SVG Graphic/Screenshot - Detected text (OCR)]: ${extractedLines.join(' | ')}`;
+      }
+    } catch {}
+    return '';
+  }
+
   private static getHeuristicImageDescription(imageUrl: string, language: string): string {
     if (imageUrl.includes('pollinations.ai/prompt/')) {
       const match = imageUrl.match(/pollinations\.ai\/prompt\/([^?&]+)/);
       if (match && match[1]) {
         const decoded = decodeURIComponent(match[1]).replace(/\+/g, ' ');
         return language === 'it'
-          ? `[Immagine allegata: Foto/grafica raffigurante ${decoded}]`
-          : `[Attached image: Photo depicting ${decoded}]`;
+          ? `[Immagine allegata: Foto/grafica raffigurante "${decoded}"]`
+          : `[Attached image: Photo depicting "${decoded}"]`;
       }
     }
     return language === 'it'
-      ? '[Immagine allegata: Foto condivisa dall’utente nel post]'
-      : '[Attached image: Photo shared in the post]';
+      ? '[Immagine allegata: Foto condivisa dall’utente nel post/DM]'
+      : '[Attached image: Photo shared in the post/DM]';
   }
 }

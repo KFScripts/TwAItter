@@ -349,8 +349,8 @@ export const App: React.FC = () => {
   const handleOpenPostFromNotification = async (postId: string) => {
     try {
       const thread = await api.getPostThread(postId);
-      if (thread && thread.length > 0) {
-        setActiveThreadPost(thread[0]);
+      if (thread && thread.post) {
+        setActiveThreadPost(thread.post);
       }
     } catch (err) {
       console.error('Error opening post from notification:', err);
