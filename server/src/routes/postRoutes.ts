@@ -1,46 +1,156 @@
 import { Router, Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { Post } from '../models/Post';
+import { Reply, IReply } from '../models/Reply';
 import { Agent } from '../models/Agent';
+import { User } from '../models/User';
 import { TrendsService } from '../services/trendsService';
 import { socketManager } from '../sockets/socketManager';
 import { AgentEngine } from '../services/agentEngine';
+import { RelationshipService } from '../services/relationshipService';
+import { NotificationService } from '../services/notificationService';
 
 const router = Router();
 
 const fallbackAuthor = (username: string) => ({
   username,
   displayName: username === 'admin' ? 'Admin' : username,
-  avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
+  avatarUrl: '',
+  verificationBadge: 'none'
 });
 
-async function attachAuthorsAndReplyContext(posts: any[]) {
-  const authorUsernames = [...new Set(posts.map((p) => p.authorUsername))];
-  const parentIds = [
-    ...new Set(
-      posts
-        .map((p) => p.replyToPostId)
-        .filter(Boolean)
-        .map((id: any) => String(id))
-    )
-  ];
+async function getAuthorsMap(usernames: string[]) {
+  const uniqueUsernames = [...new Set(usernames.filter(Boolean))];
+  if (!uniqueUsernames.length) return new Map<string, any>();
 
-  const [authors, parents] = await Promise.all([
-    Agent.find({ username: { $in: authorUsernames } })
+  const [agents, users] = await Promise.all([
+    Agent.find({ username: { $in: uniqueUsernames } })
       .select('username displayName avatarUrl bio mood city profession accountType verificationBadge')
       .lean(),
-    parentIds.length
-      ? Post.find({ _id: { $in: parentIds } }).select('_id authorUsername').lean()
+    User.find({ username: { $in: uniqueUsernames } })
+      .select('username displayName avatarUrl bio city verificationBadge isAdmin')
+      .lean()
+  ]);
+
+  const authorMap = new Map<string, any>();
+  agents.forEach((a) => {
+    authorMap.set(a.username, a);
+    authorMap.set(a.username.toLowerCase(), a);
+  });
+  users.forEach((u) => {
+    const populatedUser = {
+      ...u,
+      accountType: 'personal',
+      verificationBadge: u.verificationBadge || 'none'
+    };
+    if (!authorMap.has(u.username)) authorMap.set(u.username, populatedUser);
+    if (!authorMap.has(u.username.toLowerCase())) authorMap.set(u.username.toLowerCase(), populatedUser);
+  });
+
+  return authorMap;
+}
+
+export async function attachAuthorsToPosts(posts: any[]) {
+  if (!posts.length) return [];
+  const authorMap = await getAuthorsMap(posts.map((p) => p.authorUsername));
+
+  const postMatchIds: any[] = [];
+  posts.forEach((p) => {
+    try {
+      postMatchIds.push(new Types.ObjectId(String(p._id)));
+    } catch {}
+    postMatchIds.push(String(p._id));
+  });
+
+  const countAgg = await Reply.aggregate([
+    { $match: { postId: { $in: postMatchIds } } },
+    { $group: { _id: '$postId', count: { $sum: 1 } } }
+  ]);
+  const countMap = new Map(countAgg.map((r) => [String(r._id), r.count]));
+
+  return posts.map((p) => {
+    const author =
+      authorMap.get(p.authorUsername) ||
+      authorMap.get(String(p.authorUsername).toLowerCase()) ||
+      fallbackAuthor(p.authorUsername);
+
+    const actualCount = countMap.get(String(p._id)) ?? 0;
+
+    return {
+      ...p,
+      author,
+      repliesCount: actualCount
+    };
+  });
+}
+
+export async function attachAuthorsToReplies(replies: any[], postAuthorUsername?: string) {
+  if (!replies.length) return [];
+  const parentReplyIds = replies.map((r) => r.parentReplyId).filter(Boolean);
+  const authorUsernames = replies.map((r) => r.authorUsername);
+
+  const [authorMap, parentReplies] = await Promise.all([
+    getAuthorsMap(authorUsernames),
+    parentReplyIds.length
+      ? Reply.find({ _id: { $in: parentReplyIds } }).select('_id authorUsername').lean()
       : Promise.resolve([])
   ]);
 
-  const authorMap = new Map(authors.map((a) => [a.username, a]));
-  const parentMap = new Map(parents.map((p) => [String(p._id), p.authorUsername]));
+  const parentMap = new Map(parentReplies.map((p) => [String(p._id), p.authorUsername]));
 
-  return posts.map((p) => ({
-    ...p,
-    author: authorMap.get(p.authorUsername) || fallbackAuthor(p.authorUsername),
-    replyToAuthorUsername: p.replyToPostId ? parentMap.get(String(p.replyToPostId)) || null : null
-  }));
+  return replies.map((r) => {
+    const author =
+      authorMap.get(r.authorUsername) ||
+      authorMap.get(String(r.authorUsername).toLowerCase()) ||
+      fallbackAuthor(r.authorUsername);
+
+    let replyToAuthorUsername: string | null = null;
+    if (r.parentReplyId && parentMap.has(String(r.parentReplyId))) {
+      replyToAuthorUsername = parentMap.get(String(r.parentReplyId)) || null;
+    } else if (postAuthorUsername) {
+      replyToAuthorUsername = postAuthorUsername;
+    }
+
+    return {
+      ...r,
+      author,
+      replyToAuthorUsername
+    };
+  });
+}
+
+export async function migrateLegacyReplies() {
+  try {
+    const legacyReplies = await Post.collection.find({ replyToPostId: { $ne: null } }).toArray();
+    if (legacyReplies.length > 0) {
+      for (const leg of legacyReplies) {
+        const rootPostId = leg.rootPostId || leg.replyToPostId;
+        const parentReplyId =
+          leg.rootPostId && leg.replyToPostId && String(leg.rootPostId) !== String(leg.replyToPostId)
+            ? leg.replyToPostId
+            : null;
+
+        await Reply.create({
+          _id: leg._id,
+          postId: rootPostId,
+          parentReplyId,
+          authorUsername: leg.authorUsername,
+          content: leg.content,
+          mediaUrl: leg.mediaUrl || null,
+          reactions: leg.reactions || [],
+          likesCount: leg.likesCount || 0,
+          repostsCount: leg.repostsCount || 0,
+          tags: leg.tags || [],
+          createdAt: leg.createdAt || new Date(),
+          updatedAt: leg.updatedAt || new Date()
+        });
+      }
+      await Post.collection.deleteMany({ replyToPostId: { $ne: null } });
+      console.log(`[Migration] Migrated ${legacyReplies.length} legacy replies to Reply collection.`);
+    }
+  } catch (err: any) {
+    console.error('[Migration Error] Errore migrazione legacy replies:', err.message);
+  }
 }
 
 router.get('/trends', async (req: Request, res: Response) => {
@@ -54,13 +164,25 @@ router.get('/trends', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { tag, username, limit = 50, onlyRoots } = req.query;
+    const { tag, username, search, limit = 50, viewerUsername } = req.query;
     const filter: any = {};
+
+    if (viewerUsername && typeof viewerUsername === 'string') {
+      const blockedList = await RelationshipService.getBlockedUsernamesFor(viewerUsername);
+      if (blockedList.length > 0) {
+        filter.authorUsername = { $nin: blockedList };
+      }
+    }
 
     if (tag) filter.tags = tag;
     if (username) filter.authorUsername = username;
-    if (onlyRoots === 'true') {
-      filter.$or = [{ replyToPostId: null }, { replyToPostId: { $exists: false } }];
+    if (search && typeof search === 'string' && search.trim()) {
+      const q = search.trim();
+      filter.$or = [
+        { content: { $regex: q, $options: 'i' } },
+        { tags: { $regex: q, $options: 'i' } },
+        { authorUsername: { $regex: q, $options: 'i' } }
+      ];
     }
 
     const posts = await Post.find(filter)
@@ -68,7 +190,7 @@ router.get('/', async (req: Request, res: Response) => {
       .limit(Number(limit))
       .lean();
 
-    res.json(await attachAuthorsAndReplyContext(posts));
+    res.json(await attachAuthorsToPosts(posts));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -79,7 +201,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     const post = await Post.findById(req.params.id).lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const [populated] = await attachAuthorsAndReplyContext([post]);
+    const [populated] = await attachAuthorsToPosts([post]);
     res.json(populated);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -88,17 +210,28 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 router.get('/:id/thread', async (req: Request, res: Response) => {
   try {
-    const targetPost = await Post.findById(req.params.id).lean();
-    if (!targetPost) return res.status(404).json({ error: 'Post not found' });
+    const post = await Post.findById(req.params.id).lean();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const rootId = targetPost.rootPostId || targetPost._id;
-    const allThreadPosts = await Post.find({
-      $or: [{ _id: rootId }, { rootPostId: rootId }, { replyToPostId: targetPost._id }]
-    })
-      .sort({ createdAt: 1 })
-      .lean();
+    const postQueryIds: any[] = [post._id];
+    try {
+      postQueryIds.push(new Types.ObjectId(String(post._id)));
+    } catch {}
+    postQueryIds.push(String(post._id));
 
-    res.json(await attachAuthorsAndReplyContext(allThreadPosts));
+    const replies = await Reply.find({
+      $or: [{ postId: { $in: postQueryIds } }, { postId: post._id }]
+    }).sort({ createdAt: 1 }).lean();
+
+    const [populatedPost] = await attachAuthorsToPosts([post]);
+    const populatedReplies = await attachAuthorsToReplies(replies, populatedPost.authorUsername);
+
+    await Post.findByIdAndUpdate(post._id, { repliesCount: replies.length });
+
+    res.json({
+      post: { ...populatedPost, repliesCount: replies.length },
+      replies: populatedReplies
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -106,32 +239,25 @@ router.get('/:id/thread', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { authorUsername = 'admin', content, mediaUrl } = req.body;
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: 'Content cannot be empty' });
+    const { authorUsername = 'admin', content = '', mediaUrl } = req.body;
+    const cleanContent = (content || '').trim();
+    if (!cleanContent && !mediaUrl) {
+      return res.status(400).json({ error: 'Il post deve contenere del testo o un\'immagine' });
     }
 
-    const tags = content.match(/#[a-zA-Z0-9_]+/g)?.map((t: string) => t.replace('#', '')) || [];
+    const tags = cleanContent.match(/#[a-zA-Z0-9_]+/g)?.map((t: string) => t.replace('#', '')) || [];
 
     const post = await Post.create({
       authorUsername,
-      content: content.trim(),
+      content: cleanContent,
       mediaUrl: mediaUrl || null,
       tags
     });
 
-    const author = await Agent.findOne({ username: authorUsername }).lean();
-
-    const populated = {
-      ...post.toObject(),
-      author: author || {
-        username: authorUsername,
-        displayName: authorUsername === 'admin' ? 'Admin' : authorUsername,
-        avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`
-      }
-    };
+    const [populated] = await attachAuthorsToPosts([post.toObject()]);
 
     socketManager.broadcast('NEW_POST', { post: populated });
+    NotificationService.handleMentionsInPost(post).catch(console.error);
     AgentEngine.onPostCreated(post);
     res.status(201).json(populated);
   } catch (error: any) {
@@ -141,31 +267,112 @@ router.post('/', async (req: Request, res: Response) => {
 
 router.post('/:id/reply', async (req: Request, res: Response) => {
   try {
-    const { authorUsername = 'admin', content, mediaUrl } = req.body;
-    const parent = await Post.findById(req.params.id);
-    if (!parent) return res.status(404).json({ error: 'Parent post not found' });
+    const { authorUsername = 'admin', content, mediaUrl, parentReplyId } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post non trovato' });
 
-    const rootId = parent.rootPostId || parent._id;
-    const tags = content.match(/#[a-zA-Z0-9_]+/g)?.map((t: string) => t.replace('#', '')) || [];
+    let parentReply: IReply | null = null;
+    if (parentReplyId) {
+      parentReply = await Reply.findById(parentReplyId);
+    }
 
-    const reply = await Post.create({
+    const cleanContent = (content || '').trim();
+    if (!cleanContent && !mediaUrl) {
+      return res.status(400).json({ error: 'La risposta deve contenere del testo o un\'immagine' });
+    }
+
+    const tags = cleanContent.match(/#[a-zA-Z0-9_]+/g)?.map((t: string) => t.replace('#', '')) || [];
+
+    const reply = await Reply.create({
+      postId: post._id,
+      parentReplyId: parentReply ? parentReply._id : null,
       authorUsername,
-      content: content.trim(),
+      content: cleanContent,
       mediaUrl: mediaUrl || null,
-      replyToPostId: parent._id,
-      rootPostId: rootId,
       tags
     });
 
-    await Post.findByIdAndUpdate(parent._id, { $inc: { repliesCount: 1 } });
-    if (rootId.toString() !== parent._id.toString()) {
-      await Post.findByIdAndUpdate(rootId, { $inc: { repliesCount: 1 } });
+    const totalReplies = await Reply.countDocuments({ postId: post._id });
+    await Post.findByIdAndUpdate(post._id, { repliesCount: totalReplies });
+
+    const [populated] = await attachAuthorsToReplies([reply.toObject()], post.authorUsername);
+
+    socketManager.broadcast('NEW_REPLY', {
+      reply: populated,
+      postId: post._id,
+      parentReplyId: parentReply ? parentReply._id : null,
+      parentPost: post
+    });
+
+    const targetUsername = parentReply ? parentReply.authorUsername : post.authorUsername;
+    if (targetUsername !== authorUsername) {
+      NotificationService.createNotification({
+        recipientUsername: targetUsername,
+        senderUsername: authorUsername,
+        type: 'reply',
+        postId: post._id.toString(),
+        content: cleanContent
+      }).catch(console.error);
     }
 
-    const [populated] = await attachAuthorsAndReplyContext([reply.toObject()]);
+    NotificationService.handleMentionsInReply(reply, post._id.toString()).catch(console.error);
+    AgentEngine.onReplyCreated(reply, post);
 
-    socketManager.broadcast('NEW_REPLY', { reply: populated, parentPost: parent });
     res.status(201).json(populated);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.post('/reply/:replyId/react', async (req: Request, res: Response) => {
+  try {
+    const { agentUsername = 'admin', type = 'like' } = req.body;
+    const reply = await Reply.findById(req.params.replyId);
+    if (!reply) return res.status(404).json({ error: 'Risposta non trovata' });
+
+    const existingIndex = reply.reactions.findIndex(
+      (r) => r.agentUsername === agentUsername && r.type === type
+    );
+
+    if (existingIndex > -1) {
+      reply.reactions.splice(existingIndex, 1);
+      if (type === 'like') reply.likesCount = Math.max(0, reply.likesCount - 1);
+      if (type === 'repost') reply.repostsCount = Math.max(0, reply.repostsCount - 1);
+    } else {
+      reply.reactions.push({
+        agentUsername,
+        type,
+        createdAt: new Date()
+      });
+      if (type === 'like') reply.likesCount += 1;
+      if (type === 'repost') reply.repostsCount += 1;
+
+      if (reply.authorUsername !== agentUsername) {
+        NotificationService.createNotification({
+          recipientUsername: reply.authorUsername,
+          senderUsername: agentUsername,
+          type: 'reaction',
+          postId: reply.postId.toString(),
+          content: `Ha aggiunto una reazione (${type}) alla tua risposta`
+        }).catch(console.error);
+      }
+    }
+
+    await reply.save();
+
+    socketManager.broadcast('NEW_REACTION', {
+      replyId: reply._id,
+      postId: reply.postId,
+      reactions: reply.reactions,
+      likesCount: reply.likesCount,
+      repostsCount: reply.repostsCount
+    });
+
+    res.json({
+      reactions: reply.reactions,
+      likesCount: reply.likesCount,
+      repostsCount: reply.repostsCount
+    });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
@@ -175,7 +382,44 @@ router.post('/:id/react', async (req: Request, res: Response) => {
   try {
     const { agentUsername = 'admin', type = 'like' } = req.body;
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    if (!post) {
+      const reply = await Reply.findById(req.params.id);
+      if (!reply) return res.status(404).json({ error: 'Post o risposta non trovati' });
+
+      const existingIndex = reply.reactions.findIndex(
+        (r) => r.agentUsername === agentUsername && r.type === type
+      );
+
+      if (existingIndex > -1) {
+        reply.reactions.splice(existingIndex, 1);
+        if (type === 'like') reply.likesCount = Math.max(0, reply.likesCount - 1);
+        if (type === 'repost') reply.repostsCount = Math.max(0, reply.repostsCount - 1);
+      } else {
+        reply.reactions.push({
+          agentUsername,
+          type,
+          createdAt: new Date()
+        });
+        if (type === 'like') reply.likesCount += 1;
+        if (type === 'repost') reply.repostsCount += 1;
+      }
+      await reply.save();
+
+      socketManager.broadcast('NEW_REACTION', {
+        replyId: reply._id,
+        postId: reply.postId,
+        reactions: reply.reactions,
+        likesCount: reply.likesCount,
+        repostsCount: reply.repostsCount
+      });
+
+      return res.json({
+        reactions: reply.reactions,
+        likesCount: reply.likesCount,
+        repostsCount: reply.repostsCount
+      });
+    }
 
     const existingIndex = post.reactions.findIndex(
       (r) => r.agentUsername === agentUsername && r.type === type
@@ -193,6 +437,16 @@ router.post('/:id/react', async (req: Request, res: Response) => {
       });
       if (type === 'like') post.likesCount += 1;
       if (type === 'repost') post.repostsCount += 1;
+
+      if (post.authorUsername !== agentUsername) {
+        NotificationService.createNotification({
+          recipientUsername: post.authorUsername,
+          senderUsername: agentUsername,
+          type: 'reaction',
+          postId: post._id.toString(),
+          content: `Ha aggiunto una reazione (${type}) al tuo post`
+        }).catch(console.error);
+      }
     }
 
     await post.save();

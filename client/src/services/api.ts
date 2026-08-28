@@ -1,4 +1,4 @@
-import { IAgent, IPost, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser, IBackendLog } from '../types';
+import { IAgent, IPost, IThreadReply, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser, IBackendLog, INotification } from '../types';
 
 const API_BASE = '/api';
 
@@ -81,12 +81,12 @@ export const api = {
   },
 
   // Posts & Dynamic Trends
-  getPosts: async (params?: { tag?: string; username?: string; onlyRoots?: boolean; limit?: number }): Promise<IPost[]> => {
+  getPosts: async (params?: { tag?: string; username?: string; limit?: number; viewerUsername?: string }): Promise<IPost[]> => {
     const query = new URLSearchParams();
     if (params?.tag) query.set('tag', params.tag);
     if (params?.username) query.set('username', params.username);
-    if (params?.onlyRoots) query.set('onlyRoots', 'true');
     if (params?.limit) query.set('limit', params.limit.toString());
+    if (params?.viewerUsername) query.set('viewerUsername', params.viewerUsername);
     const res = await fetch(`${API_BASE}/posts?${query.toString()}`);
     return res.json();
   },
@@ -96,7 +96,7 @@ export const api = {
     return res.json();
   },
 
-  getPostThread: async (postId: string): Promise<IPost[]> => {
+  getPostThread: async (postId: string): Promise<{ post: IPost; replies: IThreadReply[] }> => {
     const res = await fetch(`${API_BASE}/posts/${postId}/thread`);
     return res.json();
   },
@@ -110,17 +110,32 @@ export const api = {
     return res.json();
   },
 
-  replyToPost: async (postId: string, content: string, authorUsername: string = 'admin', mediaUrl?: string): Promise<IPost> => {
+  replyToPost: async (
+    postId: string,
+    content: string,
+    authorUsername: string = 'admin',
+    mediaUrl?: string,
+    parentReplyId?: string | null
+  ): Promise<IThreadReply> => {
     const res = await fetch(`${API_BASE}/posts/${postId}/reply`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ content, authorUsername, mediaUrl })
+      body: JSON.stringify({ content, authorUsername, mediaUrl, parentReplyId: parentReplyId || null })
     });
     return res.json();
   },
 
   reactToPost: async (postId: string, type: string, agentUsername: string = 'admin') => {
     const res = await fetch(`${API_BASE}/posts/${postId}/react`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type, agentUsername })
+    });
+    return res.json();
+  },
+
+  reactToReply: async (replyId: string, type: string, agentUsername: string = 'admin') => {
+    const res = await fetch(`${API_BASE}/posts/reply/${replyId}/react`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ type, agentUsername })
@@ -188,11 +203,67 @@ export const api = {
     return res.json();
   },
 
-  sendDM: async (senderUsername: string, recipientUsername: string, content: string): Promise<IDirectMessage> => {
+  sendDM: async (
+    senderUsername: string,
+    recipientUsername: string,
+    content: string,
+    mediaUrl?: string | null,
+    attachmentType?: 'image' | 'file' | null,
+    fileName?: string | null,
+    fileSize?: number | null
+  ): Promise<IDirectMessage> => {
     const res = await fetch(`${API_BASE}/dms`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ senderUsername, recipientUsername, content })
+      body: JSON.stringify({
+        senderUsername,
+        recipientUsername,
+        content,
+        mediaUrl,
+        attachmentType,
+        fileName,
+        fileSize
+      })
+    });
+    return res.json();
+  },
+
+  markDMsAsRead: async (conversationId: string, readerUsername: string) => {
+    const res = await fetch(`${API_BASE}/dms/read`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ conversationId, readerUsername })
+    });
+    return res.json();
+  },
+
+  // Notifications
+  getNotifications: async (username: string): Promise<INotification[]> => {
+    const res = await fetch(`${API_BASE}/notifications/${username}`, {
+      headers: getAuthHeaders()
+    });
+    return res.json();
+  },
+
+  getUnreadNotificationsCount: async (username: string): Promise<{ unreadCount: number }> => {
+    const res = await fetch(`${API_BASE}/notifications/${username}/unread-count`, {
+      headers: getAuthHeaders()
+    });
+    return res.json();
+  },
+
+  markNotificationAsRead: async (id: string): Promise<INotification> => {
+    const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: getAuthHeaders()
+    });
+    return res.json();
+  },
+
+  markAllNotificationsAsRead: async (username: string): Promise<{ success: boolean }> => {
+    const res = await fetch(`${API_BASE}/notifications/read-all/${username}`, {
+      method: 'PUT',
+      headers: getAuthHeaders()
     });
     return res.json();
   },
@@ -279,6 +350,35 @@ export const api = {
 
   restartBackend: async (): Promise<{ success: boolean; message: string }> => {
     const res = await fetch(`${API_BASE}/settings/backend/restart`, { method: 'POST' });
+    return res.json();
+  },
+
+  // Relationships & Blocks
+  getRelationships: async (username: string): Promise<{ relationships: IRelationship[]; blockedList: string[] }> => {
+    const res = await fetch(`${API_BASE}/relationships/${username}`);
+    return res.json();
+  },
+
+  getRelationship: async (sourceUsername: string, targetUsername: string): Promise<IRelationship> => {
+    const res = await fetch(`${API_BASE}/relationships/${sourceUsername}/${targetUsername}`);
+    return res.json();
+  },
+
+  blockUser: async (sourceUsername: string, targetUsername: string, reason?: string): Promise<IRelationship> => {
+    const res = await fetch(`${API_BASE}/relationships/block`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceUsername, targetUsername, reason })
+    });
+    return res.json();
+  },
+
+  unblockUser: async (sourceUsername: string, targetUsername: string): Promise<IRelationship> => {
+    const res = await fetch(`${API_BASE}/relationships/unblock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceUsername, targetUsername })
+    });
     return res.json();
   },
 

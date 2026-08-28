@@ -75,7 +75,7 @@ router.post('/', async (req: Request, res: Response) => {
       city: city || 'Italia',
       profession: profession || 'Membro della community',
       accountType: accountType || 'personal',
-      verificationBadge: verificationBadge || (accountType === 'software' || accountType === 'business' ? 'gold' : 'blue'),
+      verificationBadge: verificationBadge || (accountType === 'software' || accountType === 'business' ? 'gold' : 'none'),
       personalityPrompt,
       physicalAppearance: physicalAppearance || '',
       memories: [`Creato su TwAItter`, `Professione: ${profession || 'Creativo'}`],

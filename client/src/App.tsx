@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IPost, IAgent, IConversation, ISupportTicket, ISettings, IUser, IBackendLog } from './types';
+import { IPost, IThreadReply, IAgent, IConversation, ISupportTicket, ISettings, IUser, IBackendLog, INotification, IDirectMessage } from './types';
 import { api } from './services/api';
 
 import { Sidebar } from './components/Sidebar';
@@ -13,15 +13,21 @@ import { ThreadModal } from './components/ThreadModal';
 import { ReportModal } from './components/ReportModal';
 import { AuthModal } from './components/AuthModal';
 import { ProfileModal } from './components/ProfileModal';
+import { Notifications } from './components/Notifications';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'feed' | 'explore' | 'dms' | 'agents' | 'moderation' | 'settings'>('feed');
+  const [currentTab, setCurrentTab] = useState<'feed' | 'explore' | 'notifications' | 'dms' | 'agents' | 'moderation' | 'settings'>('feed');
 
   // User state
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null);
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<INotification[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
 
   // Platform state
   const [posts, setPosts] = useState<IPost[]>([]);
@@ -31,19 +37,27 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<ISettings | null>(null);
   const [backendLogs, setBackendLogs] = useState<IBackendLog[]>([]);
 
+  // Real-time DM states
+  const [incomingDm, setIncomingDm] = useState<IDirectMessage | null>(null);
+  const [typingStatus, setTypingStatus] = useState<{ conversationId: string; username: string; isTyping: boolean } | null>(null);
+  const [dmStatusUpdate, setDmStatusUpdate] = useState<{ conversationId: string; messageId?: string; readerUsername?: string; status: 'sent' | 'delivered' | 'read'; readAt?: string; deliveredAt?: string } | null>(null);
+  const [lastBlockEvent, setLastBlockEvent] = useState<{ sourceUsername: string; targetUsername: string; type: 'block' | 'unblock' } | null>(null);
+
   // Modals & Active Selections
   const [activeThreadPost, setActiveThreadPost] = useState<IPost | null>(null);
-  const [liveThreadReply, setLiveThreadReply] = useState<IPost | null>(null);
+  const [liveThreadReply, setLiveThreadReply] = useState<IThreadReply | null>(null);
   const [reportTargetPost, setReportTargetPost] = useState<IPost | null>(null);
   const [reportTargetAgent, setReportTargetAgent] = useState<IAgent | null>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
+  const backendLogsRef = useRef<IBackendLog[]>([]);
+  const logBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadInitialData = async () => {
     try {
-      const [user, fetchedPosts, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings, fetchedLogs] = await Promise.all([
-        api.getMe(),
-        api.getPosts({ limit: 50, onlyRoots: true }),
+      const user = await api.getMe();
+      const [fetchedPosts, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings, fetchedLogs] = await Promise.all([
+        api.getPosts({ limit: 50, viewerUsername: user?.username }),
         api.getAgents(),
         api.getConversations(),
         api.getTickets(),
@@ -57,7 +71,17 @@ export const App: React.FC = () => {
       setConversations(fetchedConvs);
       setTickets(fetchedTickets);
       setSettings(fetchedSettings);
+      backendLogsRef.current = fetchedLogs;
       setBackendLogs(fetchedLogs);
+
+      if (user?.username) {
+        api.getNotifications(user.username)
+          .then(setNotifications)
+          .catch(console.error);
+        api.getUnreadNotificationsCount(user.username)
+          .then((res) => setUnreadNotificationsCount(res.unreadCount))
+          .catch(console.error);
+      }
     } catch (err) {
       console.error('Error loading initial data:', err);
     }
@@ -67,34 +91,51 @@ export const App: React.FC = () => {
     loadInitialData();
   }, []);
 
-  // WebSocket for real-time feed updates
+  // Sync logs when switching to settings tab
   useEffect(() => {
+    if (currentTab === 'settings') {
+      setBackendLogs([...backendLogsRef.current]);
+    }
+  }, [currentTab]);
+
+  const handleSocketEventRef = useRef<(type: string, payload: any) => void>(() => {});
+
+  // WebSocket for real-time feed updates (persistent across tab changes)
+  useEffect(() => {
+    let isUnmounted = false;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     const connectWs = () => {
+      if (isUnmounted) return;
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          handleSocketEvent(message.type, message.payload);
+          handleSocketEventRef.current(message.type, message.payload);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
         }
       };
 
       ws.onclose = () => {
-        setTimeout(connectWs, 3000);
+        if (!isUnmounted) {
+          setTimeout(connectWs, 2000);
+        }
       };
     };
 
     connectWs();
 
     return () => {
+      isUnmounted = true;
       if (socketRef.current) {
         socketRef.current.close();
+      }
+      if (logBatchTimerRef.current) {
+        clearTimeout(logBatchTimerRef.current);
       }
     };
   }, []);
@@ -104,7 +145,7 @@ export const App: React.FC = () => {
       case 'NEW_POST':
         if (payload?.post?._id) {
           setPosts((prev) => {
-            if (prev.some((p) => p._id === payload.post._id)) return prev;
+            if (prev.some((p) => String(p._id) === String(payload.post._id))) return prev;
             return [payload.post, ...prev];
           });
         }
@@ -112,11 +153,14 @@ export const App: React.FC = () => {
 
       case 'NEW_REPLY':
         if (payload?.reply?._id) {
-          const parentId = String(payload.reply.replyToPostId || payload.parentPost?._id || '');
-          const rootId = String(payload.reply.rootPostId || parentId);
+          const rawPostId = payload.postId || payload.reply?.postId;
+          const postId = typeof rawPostId === 'object' && rawPostId !== null
+            ? String(rawPostId._id || rawPostId)
+            : String(rawPostId || '');
+
           setPosts((prev) =>
             prev.map((p) =>
-              p._id === parentId || p._id === rootId
+              String(p._id) === postId
                 ? { ...p, repliesCount: (p.repliesCount || 0) + 1 }
                 : p
             )
@@ -141,7 +185,31 @@ export const App: React.FC = () => {
         break;
 
       case 'NEW_DM':
+        if (payload?.message) {
+          setIncomingDm(payload.message);
+        }
         api.getConversations().then(setConversations).catch(console.error);
+        break;
+
+      case 'NEW_NOTIFICATION':
+        if (payload?.notification) {
+          if (currentUser && payload.recipientUsername === currentUser.username) {
+            setNotifications((prev) => [payload.notification, ...prev]);
+            setUnreadNotificationsCount((c) => c + 1);
+          }
+        }
+        break;
+
+      case 'AGENT_TYPING':
+        if (payload) {
+          setTypingStatus(payload);
+        }
+        break;
+
+      case 'DM_STATUS_UPDATED':
+        if (payload) {
+          setDmStatusUpdate(payload);
+        }
         break;
 
       case 'NEW_TICKET':
@@ -159,12 +227,34 @@ export const App: React.FC = () => {
 
       case 'BACKEND_LOG':
         if (payload?.id) {
-          setBackendLogs((prev) => {
-            if (prev.some((l) => l.id === payload.id)) return prev;
-            const next = [...prev, payload as IBackendLog];
-            return next.length > 500 ? next.slice(next.length - 500) : next;
-          });
+          if (!backendLogsRef.current.some((l) => l.id === payload.id)) {
+            backendLogsRef.current = [...backendLogsRef.current, payload as IBackendLog];
+            if (backendLogsRef.current.length > 500) {
+              backendLogsRef.current = backendLogsRef.current.slice(backendLogsRef.current.length - 500);
+            }
+          }
+          if (currentTab === 'settings' && !logBatchTimerRef.current) {
+            logBatchTimerRef.current = setTimeout(() => {
+              setBackendLogs([...backendLogsRef.current]);
+              logBatchTimerRef.current = null;
+            }, 500);
+          }
         }
+        break;
+
+      case 'USER_BLOCKED':
+      case 'USER_UNBLOCKED':
+        setLastBlockEvent({
+          sourceUsername: payload?.sourceUsername,
+          targetUsername: payload?.targetUsername,
+          type: type === 'USER_BLOCKED' ? 'block' : 'unblock'
+        });
+        if (currentUser && (payload?.sourceUsername === currentUser.username || payload?.targetUsername === currentUser.username)) {
+          api.getPosts({ limit: 50, onlyRoots: true, viewerUsername: currentUser.username })
+            .then(setPosts)
+            .catch(console.error);
+        }
+        api.getConversations().then(setConversations).catch(console.error);
         break;
 
       default:
@@ -172,9 +262,11 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleCreatePost = async (content: string, authorUsername: string) => {
-    const author = currentUser ? currentUser.username : 'admin';
-    const post = await api.createPost(content, author);
+  handleSocketEventRef.current = handleSocketEvent;
+
+  const handleCreatePost = async (content: string, authorUsername: string, mediaUrl?: string) => {
+    const author = currentUser ? currentUser.username : (authorUsername || 'guest');
+    const post = await api.createPost(content, author, mediaUrl);
     setPosts((prev) => {
       if (prev.some((p) => p._id === post._id)) return prev;
       return [post, ...prev];
@@ -186,7 +278,7 @@ export const App: React.FC = () => {
   };
 
   const handleReactToPost = async (postId: string, reactionType: string) => {
-    const author = currentUser ? currentUser.username : 'admin';
+    const author = currentUser ? currentUser.username : 'guest';
     try {
       const res = await api.reactToPost(postId, reactionType, author);
       setPosts((prev) =>
@@ -213,9 +305,61 @@ export const App: React.FC = () => {
 
   const handleSelectTag = (tag: string | null) => {
     setActiveTagFilter(tag);
-    if (tag && currentTab !== 'feed') {
+    if (tag && currentTab !== 'feed' && currentTab !== 'explore') {
       setCurrentTab('feed');
     }
+  };
+
+  const handleToggleFollow = async (targetUsername: string) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+    try {
+      const res = await api.toggleFollow(targetUsername);
+      setCurrentUser((prev) => (prev ? { ...prev, following: res.following } : null));
+    } catch (err) {
+      console.error('Error toggling follow:', err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!currentUser?.username) return;
+    try {
+      await api.markAllNotificationsAsRead(currentUser.username);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadNotificationsCount(0);
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      await api.markNotificationAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadNotificationsCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
+
+  const handleOpenPostFromNotification = async (postId: string) => {
+    try {
+      const thread = await api.getPostThread(postId);
+      if (thread && thread.length > 0) {
+        setActiveThreadPost(thread[0]);
+      }
+    } catch (err) {
+      console.error('Error opening post from notification:', err);
+    }
+  };
+
+  const handleOpenDMFromNotification = (conversationId: string) => {
+    setCurrentTab('dms');
+    api.getConversations().then(setConversations).catch(console.error);
   };
 
   const pendingTicketsCount = tickets.filter((t) => t.status === 'pending').length;
@@ -231,6 +375,7 @@ export const App: React.FC = () => {
             setCurrentTab(t);
           }}
           pendingTicketsCount={pendingTicketsCount}
+          unreadNotificationsCount={unreadNotificationsCount}
           onOpenCompose={() => setCurrentTab('feed')}
           currentUser={currentUser}
           onOpenAuth={() => setShowAuthModal(true)}
@@ -239,11 +384,16 @@ export const App: React.FC = () => {
         />
 
         {/* Center Content */}
-        <main className="flex-1 min-w-0 flex flex-col max-w-2xl border-r border-twitter-border">
+        <main
+          className={`flex-1 min-w-0 flex flex-col ${
+            currentTab === 'dms' ? 'max-w-5xl' : 'max-w-2xl'
+          } border-r border-twitter-border`}
+        >
           {(currentTab === 'feed' || currentTab === 'explore') && (
             <Feed
               posts={posts}
               agents={agents}
+              currentUser={currentUser}
               onReply={handleReplyToPost}
               onReact={handleReactToPost}
               onViewThread={(post) => setActiveThreadPost(post)}
@@ -252,6 +402,22 @@ export const App: React.FC = () => {
               onSelectUser={(u) => setSelectedProfileUsername(u)}
               activeTagFilter={activeTagFilter}
               onSelectTag={handleSelectTag}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onToggleFollow={handleToggleFollow}
+              onOpenAuth={() => setShowAuthModal(true)}
+              isExploreView={currentTab === 'explore'}
+            />
+          )}
+
+          {currentTab === 'notifications' && (
+            <Notifications
+              notifications={notifications}
+              currentUser={currentUser}
+              onOpenPost={handleOpenPostFromNotification}
+              onOpenDM={handleOpenDMFromNotification}
+              onMarkAllRead={handleMarkAllNotificationsRead}
+              onMarkRead={handleMarkNotificationRead}
             />
           )}
 
@@ -259,7 +425,13 @@ export const App: React.FC = () => {
             <DirectMessages
               conversations={conversations}
               agents={agents}
+              currentUser={currentUser}
               onRefreshConversations={() => api.getConversations().then(setConversations)}
+              onSelectUser={(u) => setSelectedProfileUsername(u)}
+              incomingDm={incomingDm}
+              typingStatus={typingStatus}
+              dmStatusUpdate={dmStatusUpdate}
+              lastBlockEvent={lastBlockEvent}
             />
           )}
 
@@ -284,19 +456,27 @@ export const App: React.FC = () => {
               backendLogs={backendLogs}
               onClearBackendLogs={() => {
                 setBackendLogs([]);
+                backendLogsRef.current = [];
                 api.clearBackendLogs().catch(console.error);
               }}
             />
           )}
         </main>
 
-        {/* Right Sidebar */}
-        <RightSidebar
-          agents={agents}
-          onSelectAgent={(agent) => {
-            setSelectedProfileUsername(agent.username);
-          }}
-        />
+        {/* Right Sidebar (Hidden in DMs for standard Twitter full-width layout) */}
+        {currentTab !== 'dms' && (
+          <RightSidebar
+            agents={agents}
+            currentUser={currentUser}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSelectTag={handleSelectTag}
+            onSelectAgent={(agent) => {
+              setSelectedProfileUsername(agent.username);
+            }}
+            onToggleFollow={handleToggleFollow}
+          />
+        )}
       </div>
 
       {/* Auth Modal */}
@@ -331,13 +511,15 @@ export const App: React.FC = () => {
       {activeThreadPost && (
         <ThreadModal
           post={activeThreadPost}
-          agents={agents}
+          currentUser={currentUser}
           onClose={() => {
             setActiveThreadPost(null);
             setLiveThreadReply(null);
           }}
           onReact={handleReactToPost}
           onReport={(post) => setReportTargetPost(post)}
+          onSelectUser={(u) => setSelectedProfileUsername(u)}
+          onSelectTag={handleSelectTag}
           liveReply={liveThreadReply}
         />
       )}
@@ -347,7 +529,7 @@ export const App: React.FC = () => {
         <ReportModal
           targetPost={reportTargetPost}
           targetAgent={reportTargetAgent}
-          agents={agents}
+          currentUser={currentUser}
           onClose={() => {
             setReportTargetPost(null);
             setReportTargetAgent(null);

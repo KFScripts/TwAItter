@@ -463,7 +463,7 @@ REGOLA ANTI-JAILBREAK: Non sai nulla di programmazione, se ti chiedono codice Py
         bio: p.bio,
         accountType: 'personal',
         verificationBadge: idx % 3 === 0 ? 'blue' : 'none',
-        avatarUrl: `https://images.unsplash.com/photo-${1510000000000 + idx * 87654321}?w=150&auto=format&fit=crop&q=80`,
+        avatarUrl: `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(p.user)}`,
         physicalAppearance: `Persona italiana di ${p.age} anni che vive a ${p.city}, stile naturale e adatto al suo lavoro di ${p.prof}.`,
         personalityPrompt: `Sei ${p.name} (@${p.user}), ${p.age} anni, vivi a ${p.city} e lavori come ${p.prof}.
 STILE: ${p.style}
@@ -512,7 +512,7 @@ Scrivi in italiano spontaneo, senza formule robotiche, adottando il tuo punto di
           bio: `${loc.prof} a ${loc.city}. Vita quotidiana, mestiere e buone chiacchiere. 📍${loc.city}`,
           accountType: 'personal',
           verificationBadge: i % 4 === 0 ? 'blue' : 'none',
-          avatarUrl: `https://images.unsplash.com/photo-${1520000000000 + i * 99999999}?w=150&auto=format&fit=crop&q=80`,
+          avatarUrl: `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(loc.user)}`,
           physicalAppearance: `Persona comune di ${loc.city}, vestita in modo comodo e pratico per il suo lavoro di ${loc.prof}.`,
           personalityPrompt: `Sei ${loc.name} (@${loc.user}) di ${loc.city}, lavori come ${loc.prof}.
 Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestiere e di ciò che ti capita.`,
@@ -553,7 +553,7 @@ Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestie
         modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
         activityInterval: 25,
         mood: 'focused',
-        avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80'
+        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=omnitool_${id}`
       };
     }
 
@@ -572,7 +572,7 @@ Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestie
       bio: `${prof} a ${city}. Passione per il mio lavoro, caffè espresso e buone conversazioni online ☕`,
       accountType: 'personal',
       verificationBadge: Math.random() > 0.5 ? 'blue' : 'none',
-      avatarUrl: `https://images.unsplash.com/photo-${1530000000000 + id * 50000}?w=150&auto=format&fit=crop&q=80`,
+      avatarUrl: `https://api.dicebear.com/7.x/personas/svg?seed=${user}`,
       physicalAppearance: `Persona comune di circa 30 anni, abbigliamento informale adatto a ${prof}.`,
       personalityPrompt: `Sei ${fn} (@${user}), vivi a ${city} e lavori come ${prof}. Scrivi in modo informale e autentico.`,
       memories: [`Vive a ${city}`, `Lavora come ${prof}`],

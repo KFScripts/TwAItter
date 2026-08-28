@@ -1,4 +1,5 @@
 import { Post } from '../models/Post';
+import { Reply } from '../models/Reply';
 
 export interface ITrendItem {
   category: string;
@@ -10,7 +11,10 @@ export interface ITrendItem {
 export class TrendsService {
   public static async getDynamicTrends(): Promise<ITrendItem[]> {
     try {
-      const recentPosts = await Post.find().sort({ createdAt: -1 }).limit(150).lean();
+      const [recentPosts, recentReplies] = await Promise.all([
+        Post.find().sort({ createdAt: -1 }).limit(100).lean(),
+        Reply.find().sort({ createdAt: -1 }).limit(100).lean()
+      ]);
 
       const tagCounts = new Map<string, number>();
 
@@ -21,6 +25,18 @@ export class TrendsService {
             if (cleanTag) {
               const current = tagCounts.get(cleanTag) || 0;
               tagCounts.set(cleanTag, current + 1 + (post.repliesCount || 0));
+            }
+          }
+        }
+      }
+
+      for (const reply of recentReplies) {
+        if (reply.tags && Array.isArray(reply.tags)) {
+          for (const tag of reply.tags) {
+            const cleanTag = tag.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            if (cleanTag) {
+              const current = tagCounts.get(cleanTag) || 0;
+              tagCounts.set(cleanTag, current + 1);
             }
           }
         }

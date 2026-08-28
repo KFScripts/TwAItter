@@ -12,7 +12,12 @@ export type SocketEventType =
   | 'SIMULATION_STATUS'
   | 'AGENT_ACTION_LOG'
   | 'ENGINE_STATUS'
-  | 'BACKEND_LOG';
+  | 'AGENT_TYPING'
+  | 'DM_STATUS_UPDATED'
+  | 'BACKEND_LOG'
+  | 'NEW_NOTIFICATION'
+  | 'USER_BLOCKED'
+  | 'USER_UNBLOCKED';
 
 export interface SocketMessage {
   type: SocketEventType;

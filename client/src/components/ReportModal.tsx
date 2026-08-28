@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { IPost, IAgent } from '../types';
+import { IPost, IAgent, IUser } from '../types';
 import { api } from '../services/api';
 import { Flag, X, Send } from 'lucide-react';
 
 interface ReportModalProps {
   targetPost?: IPost | null;
   targetAgent?: IAgent | null;
-  agents: IAgent[];
+  currentUser: IUser | null;
   onClose: () => void;
   onTicketCreated: () => void;
 }
@@ -14,20 +14,19 @@ interface ReportModalProps {
 export const ReportModal: React.FC<ReportModalProps> = ({
   targetPost,
   targetAgent,
-  agents,
+  currentUser,
   onClose,
   onTicketCreated
 }) => {
-  const [reportingAgent, setReportingAgent] = useState('karen_ai');
   const [category, setCategory] = useState<string>('harassment');
   const [priority, setPriority] = useState<string>('medium');
   const [subject, setSubject] = useState(
     targetPost
-      ? `Report regarding post by @${targetPost.authorUsername}`
-      : `Report regarding @${targetAgent?.username || 'user'}`
+      ? `Segnalazione post di @${targetPost.authorUsername}`
+      : `Segnalazione utente @${targetAgent?.username || 'user'}`
   );
   const [description, setDescription] = useState(
-    targetPost ? `Post content: "${targetPost.content}"` : ''
+    targetPost ? `Contenuto del post: "${targetPost.content}"` : ''
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,8 +36,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const reporter = currentUser ? currentUser.username : 'guest';
       await api.createTicket({
-        agentUsername: reportingAgent,
+        agentUsername: reporter,
         category: category as any,
         priority: priority as any,
         subject: subject.trim(),
@@ -62,7 +62,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         <div className="p-4 border-b border-twitter-border flex items-center justify-between bg-[#0a0a0a]">
           <div className="flex items-center gap-2">
             <Flag className="w-5 h-5 text-red-400" />
-            <h3 className="font-bold text-white text-base">Escalate Support Ticket to Human Moderator</h3>
+            <h3 className="font-bold text-white text-base">Invia Segnalazione ai Moderatori</h3>
           </div>
           <button
             onClick={onClose}
@@ -76,54 +76,38 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-twitter-muted mb-1">Filed by Agent:</label>
-              <select
-                value={reportingAgent}
-                onChange={(e) => setReportingAgent(e.target.value)}
-                className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-twitter-blue"
-              >
-                {agents.map((a) => (
-                  <option key={a.username} value={a.username}>
-                    🤖 @{a.username}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-twitter-muted mb-1">Category:</label>
+              <label className="block text-xs font-semibold text-twitter-muted mb-1">Categoria:</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-twitter-blue"
               >
-                <option value="harassment">Harassment / Conflict</option>
-                <option value="hate_speech">Trolling / Insults</option>
-                <option value="technical_bug">Technical Bug / Glitch</option>
-                <option value="existential_crisis">Existential Crisis</option>
-                <option value="misinformation">Hallucination / Fake Info</option>
-                <option value="moderation_appeal">Moderation Appeal</option>
-                <option value="other">Other</option>
+                <option value="harassment">Molestie / Conflitto</option>
+                <option value="hate_speech">Insulti / Trolling</option>
+                <option value="technical_bug">Bug Tecnico / Errore</option>
+                <option value="misinformation">Disinformazione / Fake News</option>
+                <option value="moderation_appeal">Ricorso Moderazione</option>
+                <option value="other">Altro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-twitter-muted mb-1">Priorità:</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-twitter-blue"
+              >
+                <option value="low">Bassa</option>
+                <option value="medium">Media</option>
+                <option value="high">Alta</option>
+                <option value="urgent">Urgente</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-twitter-muted mb-1">Priority:</label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-twitter-blue"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-twitter-muted mb-1">Subject / Issue Title:</label>
+            <label className="block text-xs font-semibold text-twitter-muted mb-1">Oggetto / Titolo del problema:</label>
             <input
               type="text"
               required
@@ -134,33 +118,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-twitter-muted mb-1">Detailed Description of Incident:</label>
+            <label className="block text-xs font-semibold text-twitter-muted mb-1">Dettagli ed evidenze:</label>
             <textarea
               required
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide evidence or context for the human admin..."
+              placeholder="Spiega il motivo della segnalazione ai moderatori..."
               className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-twitter-blue resize-none"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-twitter-border">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-twitter-muted hover:text-white rounded-xl"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center gap-1.5"
-            >
-              <Send className="w-4 h-4" />
-              <span>{isSubmitting ? 'Submitting...' : 'File Ticket'}</span>
-            </button>
+          <div className="flex items-center justify-between pt-2 border-t border-twitter-border">
+            <span className="text-xs text-twitter-muted">
+              Segnalazione inviata da: <strong className="text-white">@{currentUser?.username || 'guest'}</strong>
+            </span>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-twitter-muted hover:text-white rounded-xl"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition flex items-center gap-1.5"
+              >
+                <Send className="w-4 h-4" />
+                <span>{isSubmitting ? 'Invio...' : 'Invia Segnalazione'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

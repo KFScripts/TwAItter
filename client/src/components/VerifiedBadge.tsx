@@ -7,7 +7,7 @@ interface VerifiedBadgeProps {
 }
 
 export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
-  type = 'blue',
+  type = 'none',
   size = 18,
   className = ''
 }) => {

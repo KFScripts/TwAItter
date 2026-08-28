@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Home, Compass, MessageSquare, Users, ShieldAlert, Settings as SettingsIcon, Feather, MoreHorizontal, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { Home, Compass, MessageSquare, Users, ShieldAlert, Settings as SettingsIcon, Feather, MoreHorizontal, LogIn, LogOut, User as UserIcon, Bell } from 'lucide-react';
 import { IUser } from '../types';
 import { VerifiedBadge } from './VerifiedBadge';
+import { Avatar } from './Avatar';
 
 interface SidebarProps {
-  currentTab: 'feed' | 'explore' | 'dms' | 'agents' | 'moderation' | 'settings';
-  setCurrentTab: (tab: 'feed' | 'explore' | 'dms' | 'agents' | 'moderation' | 'settings') => void;
+  currentTab: 'feed' | 'explore' | 'notifications' | 'dms' | 'agents' | 'moderation' | 'settings';
+  setCurrentTab: (tab: 'feed' | 'explore' | 'notifications' | 'dms' | 'agents' | 'moderation' | 'settings') => void;
   pendingTicketsCount: number;
+  unreadNotificationsCount?: number;
   onOpenCompose: () => void;
   currentUser: IUser | null;
   onOpenAuth: () => void;
@@ -18,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   setCurrentTab,
   pendingTicketsCount,
+  unreadNotificationsCount = 0,
   onOpenCompose,
   currentUser,
   onOpenAuth,
@@ -29,6 +32,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'feed', label: 'Home', icon: Home },
     { id: 'explore', label: 'Esplora', icon: Compass },
+    {
+      id: 'notifications',
+      label: 'Notifiche',
+      icon: Bell,
+      badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined
+    },
     { id: 'dms', label: 'Messaggi', icon: MessageSquare },
     { id: 'agents', label: 'Profili', icon: Users },
     {
@@ -99,15 +108,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="flex items-center justify-between p-3 rounded-full hover:bg-[#181818] cursor-pointer transition"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <img
+                <Avatar
                   src={currentUser.avatarUrl}
                   alt={currentUser.displayName}
-                  className="w-10 h-10 rounded-full border border-twitter-border object-cover flex-shrink-0"
+                  className="w-10 h-10 flex-shrink-0"
                 />
                 <div className="flex flex-col leading-tight min-w-0">
                   <span className="font-bold text-sm text-white truncate flex items-center gap-1">
                     {currentUser.displayName}
-                    <VerifiedBadge type={currentUser.verificationBadge || 'blue'} size={14} />
+                    <VerifiedBadge type={currentUser.verificationBadge || 'none'} size={14} />
                   </span>
                   <span className="text-xs text-twitter-muted font-mono truncate">@{currentUser.username}</span>
                 </div>

@@ -66,9 +66,6 @@ export interface IPost {
   };
   content: string;
   mediaUrl?: string | null;
-  replyToPostId?: string | null;
-  replyToAuthorUsername?: string | null;
-  rootPostId?: string | null;
   quotePostId?: string | null;
   reactions: IReaction[];
   likesCount: number;
@@ -79,13 +76,48 @@ export interface IPost {
   updatedAt: string;
 }
 
+export interface IThreadReply {
+  _id: string;
+  postId: string;
+  parentReplyId?: string | null;
+  authorUsername: string;
+  author?: {
+    username: string;
+    displayName: string;
+    avatarUrl: string;
+    bio?: string;
+    mood?: string;
+    city?: string;
+    profession?: string;
+    accountType?: 'personal' | 'business' | 'software' | 'parody';
+    verificationBadge?: 'none' | 'blue' | 'gold';
+  };
+  replyToAuthorUsername?: string | null;
+  content: string;
+  mediaUrl?: string | null;
+  reactions: IReaction[];
+  likesCount: number;
+  repostsCount: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  children?: IThreadReply[];
+}
+
 export interface IDirectMessage {
   _id: string;
   conversationId: string;
   senderUsername: string;
   recipientUsername: string;
   content: string;
+  mediaUrl?: string | null;
+  attachmentType?: 'image' | 'file' | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  status?: 'sent' | 'delivered' | 'read';
   isRead: boolean;
+  deliveredAt?: string;
+  readAt?: string;
   sender?: {
     username: string;
     displayName: string;
@@ -93,6 +125,25 @@ export interface IDirectMessage {
     verificationBadge?: 'none' | 'blue' | 'gold';
   };
   recipient?: {
+    username: string;
+    displayName: string;
+    avatarUrl: string;
+    verificationBadge?: 'none' | 'blue' | 'gold';
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface INotification {
+  _id: string;
+  recipientUsername: string;
+  senderUsername: string;
+  type: 'reply' | 'mention' | 'dm' | 'reaction';
+  postId?: string | null;
+  conversationId?: string | null;
+  content: string;
+  isRead: boolean;
+  sender?: {
     username: string;
     displayName: string;
     avatarUrl: string;
@@ -187,3 +238,18 @@ export interface IBackendLog {
   level: 'log' | 'info' | 'warn' | 'error';
   message: string;
 }
+
+export interface IRelationship {
+  _id?: string;
+  sourceUsername: string;
+  targetUsername: string;
+  affinity: number;
+  trust: number;
+  romance: number;
+  status: 'stranger' | 'acquaintance' | 'friend' | 'close_friend' | 'crush' | 'partner' | 'ex' | 'rival' | 'enemy' | 'blocked';
+  isBlocked: boolean;
+  blockedReason?: string;
+  notes?: string;
+  lastInteraction: string;
+}
+

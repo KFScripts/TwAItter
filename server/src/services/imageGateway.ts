@@ -85,10 +85,10 @@ export class ImageGateway {
         return res.data?.url || res.data?.data?.[0]?.url || res.data?.image || res.data?.output?.[0] || null;
       }
 
-      // Default Pollinations.ai (Flux / SDXL engine)
+      // Default Pollinations.ai (Fast Turbo engine)
       const sanitized = encodeURIComponent(prompt.slice(0, 160));
       const seed = Math.floor(Math.random() * 999999);
-      const model = settings?.imageModel || 'flux';
+      const model = settings?.imageModel && settings.imageModel !== 'flux' ? settings.imageModel : 'turbo';
       return `https://image.pollinations.ai/prompt/${sanitized}?width=800&height=500&model=${model}&nologo=true&seed=${seed}`;
     } catch (error: any) {
       console.warn('[Image Gateway Error]:', error.message);

@@ -21,7 +21,7 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
     displayName: { type: String, required: true },
-    avatarUrl: { type: String, default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80' },
+    avatarUrl: { type: String, default: '' },
     bio: { type: String, default: 'Nuovo utente su TwAItter 🚀' },
     city: { type: String, default: 'Italia' },
     following: [{ type: String }],

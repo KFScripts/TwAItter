@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { X, MapPin, Calendar, Edit3 } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { VerifiedBadge } from './VerifiedBadge';
+import { Avatar } from './Avatar';
 
 interface ProfileModalProps {
   targetUsername: string;
@@ -85,10 +86,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Immagine troppo grande. Seleziona un file inferiore a 2MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setAvatarUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleToggleFollow = async () => {
     try {
       const res = await api.toggleFollow(targetUsername);
       setIsFollowing(res.isFollowing);
+      if (currentUser && onProfileUpdated) {
+        onProfileUpdated({ ...currentUser, following: res.following });
+      }
     } catch (err) {
       console.error('Error toggling follow:', err);
     }
@@ -96,7 +116,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!profileData) return null;
 
-  const badgeType = profileData.verificationBadge || (profileData.accountType === 'software' || profileData.accountType === 'business' ? 'gold' : 'blue');
+  const badgeType = profileData.verificationBadge || (profileData.accountType === 'software' || profileData.accountType === 'business' ? 'gold' : 'none');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -123,10 +143,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="px-6 pb-4 relative">
             {/* Avatar & Action Button */}
             <div className="flex justify-between items-end -mt-16 mb-4">
-              <img
+              <Avatar
                 src={profileData.avatarUrl}
                 alt={profileData.displayName}
-                className="w-24 h-24 rounded-full border-4 border-black object-cover bg-twitter-card shadow-xl"
+                className="w-24 h-24 rounded-full border-4 border-black bg-twitter-card shadow-xl"
               />
 
               {isOwnProfile ? (
@@ -164,13 +184,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-twitter-muted mb-1">Foto Profilo URL:</label>
-                  <input
-                    type="text"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2 text-sm text-white focus:outline-none focus:border-twitter-blue"
-                  />
+                  <label className="block text-xs font-semibold text-twitter-muted mb-1">Foto Profilo (File o URL):</label>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFileChange}
+                      className="text-xs text-twitter-muted file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-twitter-blue file:text-white hover:file:bg-twitter-hover cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Oppure incolla URL immagine..."
+                      value={avatarUrl}
+                      onChange={(e) => setAvatarUrl(e.target.value)}
+                      className="w-full bg-[#16181c] border border-twitter-border rounded-xl p-2 text-sm text-white focus:outline-none focus:border-twitter-blue"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-twitter-muted mb-1">Città:</label>

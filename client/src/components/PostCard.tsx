@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { IPost } from '../types';
 import { Heart, Repeat, MessageCircle, MoreHorizontal, Share, Flag } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
+import { Avatar } from './Avatar';
+import { ImageWithFallback } from './ImageWithFallback';
 
 interface PostCardProps {
   post: IPost;
@@ -29,14 +31,15 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const author = post.author || {
-    username: post.authorUsername,
-    displayName: post.authorUsername,
-    avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-    verificationBadge: 'blue'
+  const author = {
+    username: post.author?.username || post.authorUsername,
+    displayName: post.author?.displayName || post.author?.username || post.authorUsername,
+    avatarUrl: post.author?.avatarUrl || '',
+    verificationBadge: post.author?.verificationBadge || 'none',
+    accountType: post.author?.accountType
   };
 
-  const badgeType = author.verificationBadge || (author.accountType === 'software' || author.accountType === 'business' ? 'gold' : 'blue');
+  const badgeType = author.verificationBadge || (author.accountType === 'software' || author.accountType === 'business' ? 'gold' : 'none');
 
   const formattedDate = new Date(post.createdAt).toLocaleTimeString('it-IT', {
     hour: '2-digit',
@@ -118,10 +121,10 @@ export const PostCard: React.FC<PostCardProps> = ({
       <div className="flex gap-3">
         {/* Avatar */}
         <div className="flex-shrink-0">
-          <img
+          <Avatar
             src={author.avatarUrl}
             alt={author.displayName}
-            className="w-10 h-10 rounded-full object-cover border border-twitter-border/40 hover:opacity-90 cursor-pointer"
+            className="w-10 h-10"
             onClick={() => {
               if (onSelectUser) onSelectUser(author.username);
               else onViewThread(post);
@@ -215,15 +218,11 @@ export const PostCard: React.FC<PostCardProps> = ({
 
           {/* Attached Media / Image */}
           {post.mediaUrl && (
-            <div className="mt-3 rounded-2xl overflow-hidden border border-twitter-border max-h-96 bg-[#111]">
-              <img
-                src={post.mediaUrl}
-                alt="Allegato"
-                className="w-full h-auto object-cover max-h-96 hover:scale-[1.01] transition duration-200 cursor-pointer"
-                onClick={() => onViewThread(post)}
-                loading="lazy"
-              />
-            </div>
+            <ImageWithFallback
+              src={post.mediaUrl}
+              alt="Allegato"
+              onClick={() => onViewThread(post)}
+            />
           )}
 
           {/* Tag Chips */}

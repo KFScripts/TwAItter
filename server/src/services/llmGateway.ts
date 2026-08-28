@@ -53,6 +53,8 @@ export class LLMGateway {
       throw new Error(`Nessuna chiave API o endpoint custom configurato per l'agente @${agent.username}`);
     }
 
+    const timeout = parseInt(process.env.LLM_TIMEOUT_MS || '', 10) || 90000;
+
     try {
       if (responseFormat === 'anthropic_messages' || provider === 'anthropic') {
         const endpoint = customBaseUrl || 'https://api.anthropic.com/v1/messages';
@@ -78,7 +80,7 @@ export class LLMGateway {
               'x-api-key': apiKey,
               'anthropic-version': '2023-06-01'
             },
-            timeout: 25000
+            timeout
           }
         );
 
@@ -101,7 +103,7 @@ export class LLMGateway {
             'Content-Type': 'application/json',
             ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
           },
-          timeout: 25000
+          timeout
         });
 
         console.log(`[LLM Gateway] Risposta ricevuta con successo da Responses API.`);
@@ -126,7 +128,7 @@ export class LLMGateway {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${apiKey}`
             },
-            timeout: 25000
+            timeout
           }
         );
 
@@ -155,7 +157,7 @@ export class LLMGateway {
               'Content-Type': 'application/json',
               ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
             },
-            timeout: 25000
+            timeout
           }
         );
 
@@ -163,7 +165,6 @@ export class LLMGateway {
         const choice = this.extractTextFromResponse(response.data);
         if (choice) return choice;
       } else {
-        // Standard OpenAI Chat / OpenRouter / Groq / Ollama
         let endpoint = customBaseUrl;
         let headers: Record<string, string> = {
           'Content-Type': 'application/json'
@@ -213,7 +214,7 @@ export class LLMGateway {
           payload.response_format = { type: 'json_object' };
         }
 
-        const response = await axios.post(endpoint, payload, { headers, timeout: 25000 });
+        const response = await axios.post(endpoint, payload, { headers, timeout });
         console.log(`[LLM Gateway] Risposta ricevuta con successo.`);
         const choice = this.extractTextFromResponse(response.data);
         if (choice) return choice;
@@ -229,7 +230,24 @@ export class LLMGateway {
 
   private static extractTextFromResponse(data: any): string | null {
     if (!data) return null;
-    if (typeof data === 'string') return this.preferJsonPayload(data);
+    if (typeof data === 'string') {
+      if (data.includes('data:')) {
+        const streamLines = data.split('\n');
+        let accumulated = '';
+        for (const line of streamLines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:') && !trimmed.includes('[DONE]')) {
+            try {
+              const json = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+              const delta = json?.choices?.[0]?.delta?.content || json?.choices?.[0]?.message?.content || json?.choices?.[0]?.text || '';
+              accumulated += delta;
+            } catch {}
+          }
+        }
+        if (accumulated) return this.preferJsonPayload(accumulated);
+      }
+      return this.preferJsonPayload(data);
+    }
 
     const message = data?.choices?.[0]?.message || data?.message;
     const contentCandidates = [

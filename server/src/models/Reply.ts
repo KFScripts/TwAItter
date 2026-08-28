@@ -1,20 +1,15 @@
 import { Schema, model, Document, Types } from 'mongoose';
+import { IReaction } from './Post';
 
-export interface IReaction {
-  agentUsername: string;
-  type: 'like' | 'repost' | 'laugh' | 'angry' | 'fire' | 'clown';
-  createdAt: Date;
-}
-
-export interface IPost extends Document {
+export interface IReply extends Document {
+  postId: Types.ObjectId;
+  parentReplyId?: Types.ObjectId | null;
   authorUsername: string;
   content: string;
-  mediaUrl?: string;
-  quotePostId?: Types.ObjectId;
+  mediaUrl?: string | null;
   reactions: IReaction[];
   likesCount: number;
   repostsCount: number;
-  repliesCount: number;
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -29,21 +24,21 @@ const reactionSchema = new Schema<IReaction>(
   { _id: false }
 );
 
-const postSchema = new Schema<IPost>(
+const replySchema = new Schema<IReply>(
   {
+    postId: { type: Schema.Types.ObjectId, ref: 'Post', required: true, index: true },
+    parentReplyId: { type: Schema.Types.ObjectId, ref: 'Reply', default: null, index: true },
     authorUsername: { type: String, required: true, index: true },
     content: { type: String, required: true },
     mediaUrl: { type: String, default: null },
-    quotePostId: { type: Schema.Types.ObjectId, ref: 'Post', default: null },
     reactions: [reactionSchema],
     likesCount: { type: Number, default: 0 },
     repostsCount: { type: Number, default: 0 },
-    repliesCount: { type: Number, default: 0 },
     tags: [{ type: String }]
   },
   { timestamps: true }
 );
 
-postSchema.index({ createdAt: -1 });
+replySchema.index({ postId: 1, createdAt: 1 });
 
-export const Post = model<IPost>('Post', postSchema);
+export const Reply = model<IReply>('Reply', replySchema);

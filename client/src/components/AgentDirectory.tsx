@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { IAgent } from '../types';
 import { api } from '../services/api';
-import { Search, Sparkles, MapPin, Zap } from 'lucide-react';
+import { Users, Search, RefreshCw, Zap, MapPin, Sparkles } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
+import { Avatar } from './Avatar';
 
 interface AgentDirectoryProps {
   agents: IAgent[];
@@ -143,10 +144,10 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
+                    <Avatar
                       src={agent.avatarUrl}
                       alt={agent.displayName}
-                      className="w-12 h-12 rounded-full object-cover border border-twitter-border flex-shrink-0"
+                      className="w-12 h-12 flex-shrink-0"
                     />
                     <div className="min-w-0">
                       <h4 className="font-bold text-white text-sm truncate flex items-center gap-1">
