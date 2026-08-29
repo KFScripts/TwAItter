@@ -100,11 +100,15 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
       {/* Chi seguire */}
       <div className="bg-twitter-card border border-twitter-border rounded-2xl p-4 flex flex-col gap-3">
-        <h3 className="font-extrabold text-white text-xl">Chi seguire</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-extrabold text-white text-xl">Chi seguire</h3>
+          <span className="text-[10px] text-twitter-muted font-mono uppercase">Top Follower</span>
+        </div>
 
         <div className="space-y-3">
-          {agents
+          {[...agents]
             .filter((a) => a.username !== currentUser?.username)
+            .sort((a, b) => (b.followersCount || 0) - (a.followersCount || 0))
             .slice(0, 5)
             .map((agent) => {
               const isFollowing = currentUser?.following?.includes(agent.username) || false;
@@ -124,7 +128,11 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         <span className="truncate">{agent.displayName}</span>
                         <VerifiedBadge type={badgeType} size={13} />
                       </p>
-                      <p className="text-xs text-twitter-muted truncate font-mono">@{agent.username}</p>
+                      <div className="flex items-center gap-1.5 text-xs text-twitter-muted truncate">
+                        <span className="font-mono">@{agent.username}</span>
+                        <span>·</span>
+                        <span className="text-twitter-blue font-semibold">{agent.followersCount || 0} follower</span>
+                      </div>
                     </div>
                   </div>
 

@@ -1,11 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { User } from '../models/User';
+import { Agent } from '../models/Agent';
 import crypto from 'crypto';
 
 const router = Router();
 
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function getUserFollowersCount(username: string): Promise<number> {
+  const [userCount, agentCount] = await Promise.all([
+    User.countDocuments({ following: username }),
+    Agent.countDocuments({ following: username })
+  ]);
+  return userCount + agentCount;
 }
 
 router.post('/register', async (req: Request, res: Response) => {
@@ -39,7 +48,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const userObj = user.toObject();
     delete (userObj as any).passwordHash;
 
-    res.status(201).json({ user: userObj, token: user.username });
+    res.status(201).json({ user: { ...userObj, followersCount: 0, followingCount: 0 }, token: user.username });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -64,8 +73,16 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const userObj = user.toObject();
     delete (userObj as any).passwordHash;
+    const followersCount = await getUserFollowersCount(user.username);
 
-    res.json({ user: userObj, token: user.username });
+    res.json({
+      user: {
+        ...userObj,
+        followersCount,
+        followingCount: (user.following || []).length
+      },
+      token: user.username
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -79,13 +96,41 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 
     const clean = username.replace('Bearer ', '').trim();
-    const user = await User.findOne({ username: clean }).select('-passwordHash');
+    const user = await User.findOne({ username: clean }).select('-passwordHash').lean();
 
     if (!user) {
       return res.status(404).json({ error: 'Utente non trovato' });
     }
 
-    res.json(user);
+    const followersCount = await getUserFollowersCount(user.username);
+
+    res.json({
+      ...user,
+      followersCount,
+      followingCount: (user.following || []).length
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/user/:username', async (req: Request, res: Response) => {
+  try {
+    const username = (req.params.username as string) || '';
+    const clean = username.toLowerCase().trim();
+    const user = await User.findOne({ username: clean }).select('-passwordHash').lean();
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+
+    const followersCount = await getUserFollowersCount(user.username);
+
+    res.json({
+      ...user,
+      followersCount,
+      followingCount: (user.following || []).length
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -105,10 +150,17 @@ router.put('/profile', async (req: Request, res: Response) => {
       { username: clean },
       { $set: { displayName, avatarUrl, bio, city } },
       { new: true }
-    ).select('-passwordHash');
+    ).select('-passwordHash').lean();
 
     if (!updated) return res.status(404).json({ error: 'Utente non trovato' });
-    res.json(updated);
+
+    const followersCount = await getUserFollowersCount(updated.username);
+
+    res.json({
+      ...updated,
+      followersCount,
+      followingCount: (updated.following || []).length
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -133,7 +185,13 @@ router.post('/follow/:targetUsername', async (req: Request, res: Response) => {
     }
 
     await user.save();
-    res.json({ following: user.following, isFollowing: !isFollowing });
+    const targetFollowersCount = await getUserFollowersCount(target);
+
+    res.json({
+      following: user.following,
+      isFollowing: !isFollowing,
+      targetFollowersCount
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

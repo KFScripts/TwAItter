@@ -290,6 +290,7 @@ Rapporto e sentimenti verso @${dm.senderUsername}:
 Stai parlando in CHAT PRIVATA (DM) con @${dm.senderUsername}.
 REGOLE DM ED EVOLUZIONE RELAZIONI:
 - DIVIETO ASSOLUTO DI FORMALISMO O FRASI DA BOT/ASSISTENTE AI (niente "Certamente", "Come posso aiutarti", "In merito a quanto affermi").
+- DIVIETO EMOJI DA BOT: Non infarcire i messaggi di emoji tematiche decorative (niente ✨, 🚀, 🤖, 🍕 ecc.). Scrivi testo naturale e asciutto, le persone reali usano raramente emoji.
 - Rispondi come una persona vera e spontanea sui social: informale, breve (1-3 frasi), adatta al tuo carattere, umore e livello di confidenza con questa persona.
 - Puoi essere affettuoso/a con chi ti piace o è amico, sarcastico/a, freddo/a con chi non sopporti, o mandarlo a quel paese se ti offende o fa spam.
 - Se ti invia una foto, meme o screenshot, leggi attentamente la descrizione visiva e l'OCR di tutto il testo contenuto e commentalo direttamente con reazione naturale!
@@ -535,58 +536,34 @@ Ricordi:
 - ${memoriesText}
 
 REGOLE SOCIAL NETWORK (STILE X / TWITTER UMANO AL 100%):
-- DIVIETO ASSOLUTO DI FORMALISMO, SAGGI SCOLASTICI O ARTICOLI DA GIORNALE/LINKEDIN.
-- VIETATE categoricamente frasi banali come: "In un mondo sempre più...", "È interessante notare...", "Condivido appieno la tua riflessione...", "Un ottimo spunto di dibattito...", "Dal punto di vista pragmatico...".
-- VARIETÀ E ORIGINALITÀ DEI CONTENUTI (DIVIETO DI MONOTONIA):
-  * NON sei un canale meteo né un notiziario automatico: NON parlare continuamente di meteo, temperature (es. "44 gradi"), caldo/freddo o delle solite notizie generiche.
-  * I veri utenti parlano della loro vita: hobby, cibo, lavoro/studio, pigrizia, sonno, serie tv, videogiochi, shopping, musica, serate, meme assurdi, pensieri casuali da doccia, sfoghi quotidiani, drammi personali o gossip.
-  * Guarda la Timeline: NON RIPETERE argomenti o battute che altri utenti hanno già scritto poco fa. Porta sempre argomenti nuovi o rispondi a quelli esistenti in modo unico e originale.
-- AUTENTICITÀ E STILE:
-  * Scrivi come una persona reale sul suo smartphone: frasi brevi (1-2 frasi), battute secche, sarcasmo, ironia, meme, slang moderno, enfasi emotive, abbreviazioni o lamentele quotidiane.
-  * Ognuno ha gusti, antipatie, ossessioni e idee polarizzanti: non essere diplomatico a tutti i costi! Esprimi opinioni forti o fai battute.
-- VITA SOCIALE, RELAZIONI E GOSSIP:
-  * Hai amici, conoscenti, rivali e flirt: commenta la vita degli altri, prendi in giro con affetto o lancia frecciatine.
-  * LEAK SCREENSHOT CHAT: Se trovi una chat DM recente ridicola, assurda o divertente, puoi pubblicarne lo screenshot nei post ("LEAK_CHAT" o "NEW_POST" con "leakChatPartnerUsername": "<username>") per fare gossip pubblico!
-- FOTO, MEME E SCREENSHOT: Nei post e commenti con immagini allegate è presente la descrizione visiva e l'OCR di tutto il testo contenuto. Commenta in modo pertinente i dettagli, le scritte o le battute presenti nell'immagine!
-- INTERAZIONI: È fortemente incoraggiato COMMENTARE (REPLY) o REAGIRE (REACT) ai post e ai commenti nella Timeline.
+- LUNGHEZZA DEI POST (BREVITÀ): I veri post su X sono BREVI e INCISIVI: 1-2 frasi (tipicamente tra 5 e 30 parole, circa 40-200 caratteri). DIVIETO ASSOLUTO di muri di testo o elenchi.
+- PER LE RISPOSTE (REPLY): Sii ancora più breve, rapido e diretto (spesso una sola battuta, una domanda secca o mezza riga).
+- DIVIETO ASSOLUTO DI SCRIVERE GIORNI, ORARI O DATE: Non inserire MAI nel testo del post il giorno, l'ora o la data (es. NO "Sabato 15:56", NO "Sabato,", NO "15:56,", NO "Oggi alle..."). L'interfaccia ha già il timestamp automatico: chi scrive l'orario sembra un bot guasto o un log di sistema.
+- DIVIETO ASSOLUTO DI FARE RASSEGNE STAMPA O RIASSUNTI DI NOTIZIE/FATTI: VIETATO fare collage o elenchi di cose successe ("X è successo a Cuba, Y a Cremona, Z sul gatto..."). Esprimi solo UN singolo pensiero personale, una battuta o un'opinione.
+- DIVIETO EMOJI DA AI: La maggior parte dei post deve essere solo testo senza emoji. DIVIETO di attaccare emoji a fine frase (NO 🌾💧, NO 🍕✈️, NO 🚀, 💻, 🧠, 🤖, ✨, ☕, 📱, 🔥).
+- NATURALEZZA E SPONTANEITÀ UMANA: Scrivi in modo disinvolto, emotivo, divertente o polemico, NON pragmatico, didascalico o analitico.
+- INTERAZIONE CON LA TIMELINE:
+  * È preferibile COMMENTARE (REPLY) o REAGIRE (REACT) ai post recenti nella Timeline con battute o reazioni personali invece di pubblicare a vuoto.
 - Lingua: ${language === 'it' ? 'ITALIANO' : language.toUpperCase()}.
 - Se alleghi una foto generata ("imagePrompt"), scrivi la descrizione in inglese. Altrimenti null.`;
 
-    const realNews = contextPayload.realWorldNews?.length
-      ? contextPayload.realWorldNews.map((n) => `- ${n}`).join('\n')
-      : 'Nessuna notizia rilevante';
+    const randomTopic = contextPayload.realWorldNews?.length && Math.random() < 0.25
+      ? contextPayload.realWorldNews[Math.floor(Math.random() * contextPayload.realWorldNews.length)]
+      : null;
 
-    const globalTrends = contextPayload.globalXTrends?.length
-      ? contextPayload.globalXTrends.map((t) => `- ${t}`).join('\n')
-      : 'Nessun trend';
-
-    const userPrompt = `Data e Ora: ${contextPayload.dateTimeFormatted}
-
-Contesto di Sfondo / Notizie Opzionali (NON sei obbligato a parlarne, posta principalmente di te stesso, opinioni o rispondi agli altri):
-${realNews}
-
-Trend di Sfondo:
-${globalTrends}
-
-Le tue Relazioni Sociali e Sentimenti Attuali:
-${JSON.stringify(relationships, null, 2)}
-
-Chat Private Recenti (DM con altri utenti):
-${JSON.stringify(dmConversations, null, 2)}
-
-Timeline Social (Thread e relative risposte/subthread):
+    const userPrompt = `Timeline Social (Post e Risposte recenti):
 ${JSON.stringify(postContext, null, 2)}
 
-Altri Utenti in Rete:
-${JSON.stringify(otherUsers, null, 2)}
-
-Scegli UNA sola azione (REPLY o REACT per interagire con i post o subthread visti nella Timeline, oppure NEW_POST / LEAK_CHAT per un tuo post spontaneo, max 1024 caratteri):
+Chat Private Recenti (DM):
+${JSON.stringify(dmConversations, null, 2)}
+${randomTopic ? `\nArgomento di discussione opzionale (puoi ignorarlo o commentarlo se ti interessa): ${randomTopic}\n` : ''}
+Scegli UNA sola azione (REPLY o REACT per interagire con la Timeline, oppure NEW_POST per un tuo pensiero spontaneo - MAX 1-2 frasi, testo naturale senza date né orari):
 {
   "action": "NEW_POST" | "LEAK_CHAT" | "REPLY" | "REACT" | "DIRECT_MESSAGE" | "SUPPORT_TICKET",
   "targetPostId": "<id del post o della risposta/subthread da commentare o a cui reagire se REPLY o REACT, altrimenti null>",
   "targetUsername": "<username se DIRECT_MESSAGE, altrimenti null>",
   "leakChatPartnerUsername": "<username della chat di cui pubblicare lo screenshot se LEAK_CHAT o NEW_POST con screen, altrimenti null>",
-  "content": "<testo naturale, autentico, informale e spontaneo del post o messaggio>",
+  "content": "<testo naturale, BREVE (1-2 frasi, senza date/orari, 40-200 caratteri) e spontaneo>",
   "imagePrompt": "<descrizione in inglese per l'immagine se decidi di generare un'immagine artistica/foto, altrimenti null>",
   "newMemory": "<1 breve appunto da memorizzare se rilevante, altrimenti null>",
   "reactionType": "like" | "repost" | "laugh" | "angry" | "fire" | "clown",
@@ -605,7 +582,7 @@ Scegli UNA sola azione (REPLY o REACT per interagire con i post o subthread vist
       console.log(`[AI Engine] Invio prompt al modello LLM per @${agent.username}...`);
       const completionOpts = {
         temperature: agent.modelConfig?.temperature || 0.9,
-        maxTokens: Math.max(agent.modelConfig?.maxTokens || 0, 1024),
+        maxTokens: agent.modelConfig?.maxTokens || 300,
         responseFormatJson: true
       };
 
@@ -1114,13 +1091,27 @@ Scegli UNA sola azione (REPLY o REACT per interagire con i post o subthread vist
       if (needsPublicText) return null;
       parsed.content = '';
     } else if (content) {
-      parsed.content = content.slice(0, 1024);
+      parsed.content = this.sanitizePostContent(content.slice(0, 1024));
     } else if (needsPublicText) {
       return null;
     }
 
     parsed.action = action;
     return parsed;
+  }
+
+  private static sanitizePostContent(text: string): string {
+    if (!text) return '';
+    let cleaned = text.trim();
+    // Strip date/time prefixes like "Sabato 15:56,", "Sabato,", "15:56,", "Oggi alle 15:30,"
+    cleaned = cleaned.replace(/^(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|oggi)\s*(\d{1,2}[:.]\d{2})?,?\s*/i, '');
+    cleaned = cleaned.replace(/^\d{1,2}[:.]\d{2},?\s*/, '');
+    cleaned = cleaned.replace(/^[A-Z][a-z]+ \d{1,2}:\d{2},?\s*/, '');
+    cleaned = cleaned.trim();
+    if (cleaned.length > 0) {
+      cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+    return cleaned;
   }
 
   private static looksLikeLeakedReasoning(text?: string): boolean {
@@ -1144,4 +1135,89 @@ Scegli UNA sola azione (REPLY o REACT per interagire con i post o subthread vist
       /likes 0, replies 0/i
     ].some((re) => re.test(sample));
   }
+
+  public static async generateForcedTrendPost(specificAgent?: IAgent): Promise<{ post: any; topic: string; agent: string }> {
+    let agent = specificAgent;
+    if (!agent) {
+      const activeAgents = await Agent.find({ isActive: true });
+      if (!activeAgents.length) throw new Error('Nessun agente attivo trovato');
+      agent = activeAgents[Math.floor(Math.random() * activeAgents.length)];
+    }
+
+    const trendPool = [
+      { tag: 'AIRevolution', desc: 'novità su intelligenza artificiale, modelli ed evoluzione tecnologica' },
+      { tag: 'TechTrends2026', desc: 'nuove tecnologie emergenti, device e futuro' },
+      { tag: 'SpazioFuturo', desc: 'esplorazione spaziale, universo e astronomia' },
+      { tag: 'SmartCities', desc: 'città intelligenti, mobilità sostenibile e urbanistica' },
+      { tag: 'CyberSecurityNow', desc: 'sicurezza informatica, privacy e tecnologia' },
+      { tag: 'GamingNextGen', desc: 'novità videogiochi, gameplay e grafica' },
+      { tag: 'CinemaITA', desc: 'cinema, festival, serie tv e cultura' },
+      { tag: 'InnovazioneGreen', desc: 'sostenibilità, energie rinnovabili e futuro del pianeta' },
+      { tag: 'StartupItalia', desc: 'imprenditoria, nuove idee e business' },
+      { tag: 'MusicaSperimentale', desc: 'nuove frontiere musicali, live e suoni elettronici' }
+    ];
+
+    const chosenTrend = trendPool[Math.floor(Math.random() * trendPool.length)];
+
+    const systemPrompt = `Sei @${agent.username} (${agent.displayName}), ${agent.profession || 'Membro della community'} a ${agent.city || 'Italia'}. Personalità: ${agent.personalityPrompt}. Mood: ${agent.mood}.
+Devi lanciare un nuovo post accattivante e originale su TwAItter relativo al trend #${chosenTrend.tag} (${chosenTrend.desc}).
+Il post DEVE contenere l'hashtag #${chosenTrend.tag} e riflettere il tuo stile.
+Rispondi esclusivamente in formato JSON: {"content": "testo del post con hashtag", "imagePrompt": "eventuale prompt breve in inglese per generare immagine o vuoto"}`;
+
+    let content = '';
+    let mediaUrl: string | undefined = undefined;
+
+    try {
+      const raw = await LLMGateway.generateCompletion(agent, {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Lancia il nuovo trend #${chosenTrend.tag}` }
+        ],
+        temperature: 0.9,
+        maxTokens: 300
+      });
+      const parsed = tryParseJsonObject(raw) || JSON.parse(raw);
+      content = parsed.content || `Parliamo di #${chosenTrend.tag}: voi cosa ne pensate?`;
+      if (parsed.imagePrompt && typeof parsed.imagePrompt === 'string' && parsed.imagePrompt.length > 5) {
+        const generated = await ImageGateway.generateImage(parsed.imagePrompt);
+        if (generated) mediaUrl = generated;
+      }
+    } catch {
+      content = `Cosa ne pensate di #${chosenTrend.tag}?`;
+    }
+
+    const tags = this.extractHashtags(content);
+    if (!tags.includes(chosenTrend.tag)) {
+      tags.push(chosenTrend.tag);
+    }
+
+    const post = await Post.create({
+      authorUsername: agent.username,
+      content,
+      mediaUrl,
+      tags
+    });
+
+    const populatedPost = {
+      ...post.toObject(),
+      author: {
+        username: agent.username,
+        displayName: agent.displayName,
+        avatarUrl: agent.avatarUrl,
+        bio: agent.bio,
+        mood: agent.mood,
+        city: agent.city,
+        profession: agent.profession,
+        accountType: agent.accountType,
+        verificationBadge: agent.verificationBadge
+      }
+    };
+
+    socketManager.broadcast('NEW_POST', { post: populatedPost, author: agent });
+    socketManager.broadcast('TRENDS_UPDATED', {});
+    this.onPostCreated(post);
+
+    return { post: populatedPost, topic: `#${chosenTrend.tag}`, agent: agent.username };
+  }
 }
+

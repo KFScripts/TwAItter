@@ -11,9 +11,11 @@ interface SidebarProps {
   unreadNotificationsCount?: number;
   onOpenCompose: () => void;
   currentUser: IUser | null;
+  savedAccounts: IUser[];
   onOpenAuth: () => void;
   onOpenProfile: (username: string) => void;
   onLogout: () => void;
+  onSwitchAccount: (account: IUser) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -23,9 +25,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unreadNotificationsCount = 0,
   onOpenCompose,
   currentUser,
+  savedAccounts = [],
   onOpenAuth,
   onOpenProfile,
-  onLogout
+  onLogout,
+  onSwitchAccount
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -48,6 +52,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'settings', label: 'Impostazioni', icon: SettingsIcon }
   ];
+
+  const otherAccounts = savedAccounts.filter((a) => a.username !== currentUser?.username);
 
   return (
     <aside className="w-64 border-r border-twitter-border flex flex-col justify-between p-3 h-screen sticky top-0 bg-black select-none">
@@ -125,27 +131,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {showUserMenu && (
-              <div className="absolute bottom-16 left-0 w-full bg-black border border-twitter-border rounded-2xl shadow-2xl p-1.5 z-30 space-y-1">
-                <button
-                  onClick={() => {
-                    onOpenProfile(currentUser.username);
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-xs font-semibold text-white hover:bg-[#181818] rounded-xl flex items-center gap-2 transition"
-                >
-                  <UserIcon className="w-4 h-4 text-twitter-blue" />
-                  <span>Visualizza / Modifica Profilo</span>
-                </button>
-                <button
-                  onClick={() => {
-                    onLogout();
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-xs font-semibold text-red-400 hover:bg-[#181818] rounded-xl flex items-center gap-2 transition"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Esci dall’account</span>
-                </button>
+              <div className="absolute bottom-16 left-0 w-72 bg-black border border-twitter-border rounded-2xl shadow-2xl p-2 z-30 space-y-1.5 divide-y divide-twitter-border/40">
+                {/* Active Account Info */}
+                <div className="p-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar src={currentUser.avatarUrl} alt={currentUser.displayName} className="w-8 h-8 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate flex items-center gap-1">
+                        {currentUser.displayName}
+                        <VerifiedBadge type={currentUser.verificationBadge || 'none'} size={12} />
+                      </p>
+                      <p className="text-[10px] text-twitter-muted font-mono truncate">@{currentUser.username}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-twitter-blue bg-twitter-blue/10 px-2 py-0.5 rounded-full">Attivo</span>
+                </div>
+
+                {/* Other Saved Accounts */}
+                {otherAccounts.length > 0 && (
+                  <div className="pt-1.5 space-y-1">
+                    <p className="px-2 text-[10px] uppercase font-bold text-twitter-muted">Cambia Account:</p>
+                    {otherAccounts.map((acc) => (
+                      <button
+                        key={acc.username}
+                        onClick={() => {
+                          onSwitchAccount(acc);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full px-2.5 py-1.5 text-left rounded-xl hover:bg-[#181818] transition flex items-center gap-2.5"
+                      >
+                        <Avatar src={acc.avatarUrl} alt={acc.displayName} className="w-7 h-7 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-white truncate flex items-center gap-1">
+                            {acc.displayName}
+                            <VerifiedBadge type={acc.verificationBadge || 'none'} size={11} />
+                          </p>
+                          <p className="text-[10px] text-twitter-muted font-mono truncate">@{acc.username}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="pt-1.5 space-y-1">
+                  <button
+                    onClick={() => {
+                      onOpenAuth();
+                      setShowUserMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-semibold text-white hover:bg-[#181818] rounded-xl flex items-center gap-2 transition"
+                  >
+                    <LogIn className="w-4 h-4 text-twitter-blue" />
+                    <span>+ Aggiungi o Accedi con un altro account</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onOpenProfile(currentUser.username);
+                      setShowUserMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-semibold text-white hover:bg-[#181818] rounded-xl flex items-center gap-2 transition"
+                  >
+                    <UserIcon className="w-4 h-4 text-twitter-blue" />
+                    <span>Visualizza / Modifica Profilo</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      setShowUserMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-semibold text-red-400 hover:bg-[#181818] rounded-xl flex items-center gap-2 transition"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Esci da @{currentUser.username}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

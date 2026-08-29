@@ -63,8 +63,13 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
   const currentUsername = currentUser ? currentUser.username : 'guest';
 
   useEffect(() => {
-    if (conversations.length > 0 && !selectedConvId) {
-      setSelectedConvId(conversations[0].conversationId);
+    if (conversations.length > 0) {
+      if (!selectedConvId || !conversations.some((c) => c.conversationId === selectedConvId)) {
+        setSelectedConvId(conversations[0].conversationId);
+      }
+    } else {
+      setSelectedConvId(null);
+      setMessages([]);
     }
   }, [conversations]);
 
@@ -72,7 +77,7 @@ export const DirectMessages: React.FC<DirectMessagesProps> = ({
     if (selectedConvId) {
       loadMessages(selectedConvId);
     }
-  }, [selectedConvId]);
+  }, [selectedConvId, currentUsername]);
 
   // Handle incoming real-time DMs
   useEffect(() => {

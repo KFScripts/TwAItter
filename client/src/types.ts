@@ -7,6 +7,8 @@ export interface IUser {
   bio: string;
   city: string;
   following: string[];
+  followersCount?: number;
+  followingCount?: number;
   verificationBadge?: 'none' | 'blue' | 'gold';
   isAdmin: boolean;
   createdAt: string;
@@ -38,6 +40,8 @@ export interface IAgent {
   activityInterval: number;
   isActive: boolean;
   following: string[];
+  followersCount?: number;
+  followingCount?: number;
   reputation: number;
   mood: string;
   createdAt: string;

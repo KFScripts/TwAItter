@@ -20,6 +20,14 @@ export const App: React.FC = () => {
 
   // User state
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
+  const [savedAccounts, setSavedAccounts] = useState<IUser[]>(() => {
+    try {
+      const saved = localStorage.getItem('twaitter_saved_accounts');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null);
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
@@ -31,6 +39,11 @@ export const App: React.FC = () => {
 
   // Platform state
   const [posts, setPosts] = useState<IPost[]>([]);
+  const [feedTab, setFeedTab] = useState<'for_you' | 'following'>('for_you');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+
   const [agents, setAgents] = useState<IAgent[]>([]);
   const [conversations, setConversations] = useState<IConversation[]>([]);
   const [tickets, setTickets] = useState<ISupportTicket[]>([]);
@@ -53,20 +66,74 @@ export const App: React.FC = () => {
   const backendLogsRef = useRef<IBackendLog[]>([]);
   const logBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const fetchPostsFeed = async (cursor: string | null = null, reset: boolean = true, tabOverride?: 'for_you' | 'following') => {
+    try {
+      const activeFeed = tabOverride || feedTab;
+      const res = await api.getPosts({
+        limit: 20,
+        cursor,
+        feedType: activeFeed,
+        viewerUsername: currentUser?.username,
+        tag: activeTagFilter || undefined,
+        search: searchQuery || undefined
+      });
+
+      if (reset) {
+        setPosts(res.posts || []);
+      } else {
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => String(p._id)));
+          const uniqueNew = (res.posts || []).filter((p) => !existingIds.has(String(p._id)));
+          return [...prev, ...uniqueNew];
+        });
+      }
+      setNextCursor(res.nextCursor || null);
+      setHasMore(res.hasMore || false);
+    } catch (err) {
+      console.error('Error fetching posts chunk:', err);
+    }
+  };
+
+  const handleLoadMorePosts = async () => {
+    if (!hasMore || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+    try {
+      await fetchPostsFeed(nextCursor, false);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleFeedTabChange = (newTab: 'for_you' | 'following') => {
+    setFeedTab(newTab);
+    fetchPostsFeed(null, true, newTab);
+  };
+
   const loadInitialData = async () => {
     try {
       const user = await api.getMe();
-      const [fetchedPosts, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings, fetchedLogs] = await Promise.all([
-        api.getPosts({ limit: 50, viewerUsername: user?.username }),
-        api.getAgents(),
-        api.getConversations(),
+      const [fetchedFeed, fetchedAgents, fetchedConvs, fetchedTickets, fetchedSettings, fetchedLogs] = await Promise.all([
+        api.getPosts({ limit: 20, feedType: 'for_you', viewerUsername: user?.username }),
+        api.getAgents({ sortBy: 'followers' }),
+        api.getConversations(user?.username),
         api.getTickets(),
         api.getSettings(),
         api.getBackendLogs().catch(() => [] as IBackendLog[])
       ]);
 
       setCurrentUser(user);
-      setPosts(fetchedPosts);
+      if (user) {
+        setSavedAccounts((prev) => {
+          const filtered = prev.filter((a) => a.username !== user.username);
+          const updated = [user, ...filtered];
+          localStorage.setItem('twaitter_saved_accounts', JSON.stringify(updated));
+          return updated;
+        });
+      }
+      setPosts(fetchedFeed.posts || []);
+      setNextCursor(fetchedFeed.nextCursor || null);
+      setHasMore(fetchedFeed.hasMore || false);
+
       setAgents(fetchedAgents);
       setConversations(fetchedConvs);
       setTickets(fetchedTickets);
@@ -186,9 +253,11 @@ export const App: React.FC = () => {
 
       case 'NEW_DM':
         if (payload?.message) {
-          setIncomingDm(payload.message);
+          if (currentUser && (payload.message.senderUsername === currentUser.username || payload.message.recipientUsername === currentUser.username)) {
+            setIncomingDm(payload.message);
+            api.getConversations(currentUser.username).then(setConversations).catch(console.error);
+          }
         }
-        api.getConversations().then(setConversations).catch(console.error);
         break;
 
       case 'NEW_NOTIFICATION':
@@ -298,9 +367,55 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('twaitter_token');
-    setCurrentUser(null);
+  const handleSwitchAccount = async (targetUser: IUser) => {
+    localStorage.setItem('twaitter_token', targetUser.username);
+    setCurrentUser(targetUser);
+    try {
+      const [fetchedConvs, fetchedFeed, fetchedAgents] = await Promise.all([
+        api.getConversations(targetUser.username),
+        api.getPosts({ limit: 20, feedType: feedTab, viewerUsername: targetUser.username }),
+        api.getAgents({ sortBy: 'followers' })
+      ]);
+      setConversations(fetchedConvs);
+      setPosts(fetchedFeed.posts || []);
+      setNextCursor(fetchedFeed.nextCursor || null);
+      setHasMore(fetchedFeed.hasMore || false);
+      setAgents(fetchedAgents);
+      api.getNotifications(targetUser.username).then(setNotifications).catch(console.error);
+      api.getUnreadNotificationsCount(targetUser.username).then((res) => setUnreadNotificationsCount(res.unreadCount)).catch(console.error);
+    } catch (e) {
+      console.error('Error switching account:', e);
+    }
+  };
+
+  const handleLoginSuccess = async (user: IUser) => {
+    setSavedAccounts((prev) => {
+      const filtered = prev.filter((a) => a.username !== user.username);
+      const updated = [user, ...filtered];
+      localStorage.setItem('twaitter_saved_accounts', JSON.stringify(updated));
+      return updated;
+    });
+    await handleSwitchAccount(user);
+  };
+
+  const handleLogout = async () => {
+    const updated = savedAccounts.filter((a) => a.username !== currentUser?.username);
+    setSavedAccounts(updated);
+    localStorage.setItem('twaitter_saved_accounts', JSON.stringify(updated));
+
+    if (updated.length > 0) {
+      await handleSwitchAccount(updated[0]);
+    } else {
+      localStorage.removeItem('twaitter_token');
+      setCurrentUser(null);
+      setConversations([]);
+      setNotifications([]);
+      setUnreadNotificationsCount(0);
+      const fetchedFeed = await api.getPosts({ limit: 20, feedType: 'for_you' });
+      setPosts(fetchedFeed.posts || []);
+      setNextCursor(fetchedFeed.nextCursor || null);
+      setHasMore(fetchedFeed.hasMore || false);
+    }
   };
 
   const handleSelectTag = (tag: string | null) => {
@@ -318,10 +433,29 @@ export const App: React.FC = () => {
     try {
       const res = await api.toggleFollow(targetUsername);
       setCurrentUser((prev) => (prev ? { ...prev, following: res.following } : null));
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.username === targetUsername && res.targetFollowersCount !== undefined
+            ? { ...a, followersCount: res.targetFollowersCount }
+            : a
+        )
+      );
+      if (feedTab === 'following') {
+        fetchPostsFeed(null, true, 'following');
+      }
     } catch (err) {
       console.error('Error toggling follow:', err);
     }
   };
+
+  useEffect(() => {
+    if (currentTab === 'feed' || currentTab === 'explore') {
+      const timer = setTimeout(() => {
+        fetchPostsFeed(null, true);
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTagFilter, searchQuery]);
 
   const handleMarkAllNotificationsRead = async () => {
     if (!currentUser?.username) return;
@@ -359,7 +493,7 @@ export const App: React.FC = () => {
 
   const handleOpenDMFromNotification = (conversationId: string) => {
     setCurrentTab('dms');
-    api.getConversations().then(setConversations).catch(console.error);
+    api.getConversations(currentUser?.username).then(setConversations).catch(console.error);
   };
 
   const pendingTicketsCount = tickets.filter((t) => t.status === 'pending').length;
@@ -378,9 +512,11 @@ export const App: React.FC = () => {
           unreadNotificationsCount={unreadNotificationsCount}
           onOpenCompose={() => setCurrentTab('feed')}
           currentUser={currentUser}
+          savedAccounts={savedAccounts}
           onOpenAuth={() => setShowAuthModal(true)}
           onOpenProfile={(u) => setSelectedProfileUsername(u)}
           onLogout={handleLogout}
+          onSwitchAccount={handleSwitchAccount}
         />
 
         {/* Center Content */}
@@ -407,6 +543,11 @@ export const App: React.FC = () => {
               onToggleFollow={handleToggleFollow}
               onOpenAuth={() => setShowAuthModal(true)}
               isExploreView={currentTab === 'explore'}
+              activeTab={feedTab}
+              onTabChange={handleFeedTabChange}
+              onLoadMore={handleLoadMorePosts}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
             />
           )}
 
@@ -426,7 +567,7 @@ export const App: React.FC = () => {
               conversations={conversations}
               agents={agents}
               currentUser={currentUser}
-              onRefreshConversations={() => api.getConversations().then(setConversations)}
+              onRefreshConversations={() => api.getConversations(currentUser?.username).then(setConversations)}
               onSelectUser={(u) => setSelectedProfileUsername(u)}
               incomingDm={incomingDm}
               typingStatus={typingStatus}
@@ -483,9 +624,7 @@ export const App: React.FC = () => {
       {showAuthModal && (
         <AuthModal
           onClose={() => setShowAuthModal(false)}
-          onLoginSuccess={(user) => {
-            setCurrentUser(user);
-          }}
+          onLoginSuccess={handleLoginSuccess}
         />
       )}
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { IUser, IAgent, IPost } from '../types';
 import { api } from '../services/api';
-import { X, MapPin, Calendar, Edit3 } from 'lucide-react';
+import { X, MapPin, Calendar, Edit3, Settings2 } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Avatar } from './Avatar';
+import { EditAgentModal } from './EditAgentModal';
 
 interface ProfileModalProps {
   targetUsername: string;
@@ -30,6 +31,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [profileData, setProfileData] = useState<any>(null);
   const [posts, setPosts] = useState<IPost[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingAgent, setIsEditingAgent] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 
   // Edit fields
@@ -65,7 +67,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
 
       const userPosts = await api.getPosts({ username: targetUsername });
-      setPosts(userPosts);
+      setPosts(userPosts.posts || []);
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -106,6 +108,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     try {
       const res = await api.toggleFollow(targetUsername);
       setIsFollowing(res.isFollowing);
+      if (res.targetFollowersCount !== undefined) {
+        setProfileData((prev: any) => (prev ? { ...prev, followersCount: res.targetFollowersCount } : null));
+      }
       if (currentUser && onProfileUpdated) {
         onProfileUpdated({ ...currentUser, following: res.following });
       }
@@ -116,6 +121,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!profileData) return null;
 
+  const isAgent = profileData.personalityPrompt !== undefined;
   const badgeType = profileData.verificationBadge || (profileData.accountType === 'software' || profileData.accountType === 'business' ? 'gold' : 'none');
 
   return (
@@ -149,27 +155,51 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 className="w-24 h-24 rounded-full border-4 border-black bg-twitter-card shadow-xl"
               />
 
-              {isOwnProfile ? (
-                <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="px-4 py-2 rounded-full font-bold text-xs border border-twitter-border hover:bg-[#181818] text-white transition flex items-center gap-1.5"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>{isEditing ? 'Annulla' : 'Modifica profilo'}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleToggleFollow}
-                  className={`px-5 py-2 rounded-full font-bold text-xs transition ${
-                    isFollowing
-                      ? 'bg-transparent border border-twitter-border text-white hover:border-red-500 hover:text-red-400'
-                      : 'bg-white text-black hover:bg-white/90'
-                  }`}
-                >
-                  {isFollowing ? 'Seguito' : 'Segui'}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {isAgent && (
+                  <button
+                    onClick={() => setIsEditingAgent(true)}
+                    className="px-3.5 py-2 rounded-full font-bold text-xs bg-[#181a20] hover:bg-[#252932] border border-twitter-border text-twitter-blue transition flex items-center gap-1.5 shadow"
+                    title="Modifica impostazioni e prompt dell'agente AI"
+                  >
+                    <Settings2 className="w-3.5 h-3.5" />
+                    <span>Modifica Agente AI</span>
+                  </button>
+                )}
+
+                {isOwnProfile ? (
+                  <button
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="px-4 py-2 rounded-full font-bold text-xs border border-twitter-border hover:bg-[#181818] text-white transition flex items-center gap-1.5"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>{isEditing ? 'Annulla' : 'Modifica profilo'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleToggleFollow}
+                    className={`px-5 py-2 rounded-full font-bold text-xs transition ${
+                      isFollowing
+                        ? 'bg-transparent border border-twitter-border text-white hover:border-red-500 hover:text-red-400'
+                        : 'bg-white text-black hover:bg-white/90'
+                    }`}
+                  >
+                    {isFollowing ? 'Seguito' : 'Segui'}
+                  </button>
+                )}
+              </div>
             </div>
+
+            {isEditingAgent && isAgent && (
+              <EditAgentModal
+                agent={profileData}
+                onClose={() => setIsEditingAgent(false)}
+                onUpdated={(updated) => {
+                  setProfileData(updated);
+                  setIsEditingAgent(false);
+                }}
+              />
+            )}
 
             {isEditing ? (
               <form onSubmit={handleSaveProfile} className="space-y-3 bg-[#111] p-4 rounded-xl border border-twitter-border">
@@ -258,6 +288,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Membro su TwAItter</span>
+                  </div>
+                </div>
+
+                {/* Follower / Following Stats */}
+                <div className="flex items-center gap-4 text-xs mt-3 pt-2 border-t border-twitter-border/40">
+                  <div>
+                    <span className="font-bold text-white">{profileData.followingCount || profileData.following?.length || 0}</span>
+                    <span className="text-twitter-muted ml-1">Seguiti</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-white">{profileData.followersCount || 0}</span>
+                    <span className="text-twitter-muted ml-1">Follower</span>
                   </div>
                 </div>
               </div>

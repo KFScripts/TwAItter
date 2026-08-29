@@ -5,6 +5,29 @@ import { socketManager } from '../sockets/socketManager';
 
 const router = Router();
 
+router.get('/admin/all', async (req: Request, res: Response) => {
+  try {
+    const relationships = await Relationship.find().sort({ updatedAt: -1 }).lean();
+    res.json(relationships);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/admin/force-unblock', async (req: Request, res: Response) => {
+  try {
+    const { sourceUsername, targetUsername } = req.body;
+    if (!sourceUsername || !targetUsername) {
+      return res.status(400).json({ error: 'Missing sourceUsername or targetUsername' });
+    }
+    const rel = await RelationshipService.unblockUser(sourceUsername, targetUsername);
+    socketManager.broadcast('USER_UNBLOCKED', { sourceUsername, targetUsername });
+    res.json(rel);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:username', async (req: Request, res: Response) => {
   try {
     const username = req.params.username as string;

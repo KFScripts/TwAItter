@@ -1,14 +1,72 @@
 import { Router, Request, Response } from 'express';
 import { Agent } from '../models/Agent';
+import { User } from '../models/User';
 import { AgentEngine } from '../services/agentEngine';
 import { AgentGenerator } from '../services/agentGenerator';
 
 const router = Router();
 
+async function getFollowersCountMap(usernames: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!usernames.length) return map;
+
+  const [userAgg, agentAgg] = await Promise.all([
+    User.aggregate([
+      { $unwind: '$following' },
+      { $match: { following: { $in: usernames } } },
+      { $group: { _id: '$following', count: { $sum: 1 } } }
+    ]),
+    Agent.aggregate([
+      { $unwind: '$following' },
+      { $match: { following: { $in: usernames } } },
+      { $group: { _id: '$following', count: { $sum: 1 } } }
+    ])
+  ]);
+
+  usernames.forEach((u) => map.set(u, 0));
+  userAgg.forEach((r) => map.set(r._id, (map.get(r._id) || 0) + r.count));
+  agentAgg.forEach((r) => map.set(r._id, (map.get(r._id) || 0) + r.count));
+
+  return map;
+}
+
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const agents = await Agent.find().sort({ username: 1 });
-    res.json(agents);
+    const { sortBy } = req.query;
+    const agents = await Agent.find().lean();
+    const usernames = agents.map((a) => a.username);
+    const followersMap = await getFollowersCountMap(usernames);
+
+    const enriched = agents.map((a) => ({
+      ...a,
+      followersCount: followersMap.get(a.username) || 0,
+      followingCount: (a.following || []).length
+    }));
+
+    if (sortBy === 'followers') {
+      enriched.sort((a, b) => (b.followersCount || 0) - (a.followersCount || 0));
+    } else {
+      enriched.sort((a, b) => a.username.localeCompare(b.username));
+    }
+
+    res.json(enriched);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/force-trend', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.body;
+    let agent = null;
+    if (username) {
+      agent = await Agent.findOne({ username });
+    }
+    const result = await AgentEngine.generateForcedTrendPost(agent || undefined);
+    res.json({
+      message: `Nuovo trend ${result.topic} lanciato con successo da @${result.agent}`,
+      ...result
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -37,9 +95,14 @@ router.post('/generate-single', async (req: Request, res: Response) => {
 
 router.get('/:username', async (req: Request, res: Response) => {
   try {
-    const agent = await Agent.findOne({ username: req.params.username });
+    const agent = await Agent.findOne({ username: req.params.username }).lean();
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    res.json(agent);
+    const followersMap = await getFollowersCountMap([agent.username]);
+    res.json({
+      ...agent,
+      followersCount: followersMap.get(agent.username) || 0,
+      followingCount: (agent.following || []).length
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

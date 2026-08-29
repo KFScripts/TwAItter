@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { IPost, IAgent, IUser } from '../types';
 import { PostCard } from './PostCard';
 import { Avatar } from './Avatar';
@@ -22,6 +22,11 @@ interface FeedProps {
   onToggleFollow?: (username: string) => void;
   onOpenAuth?: () => void;
   isExploreView?: boolean;
+  activeTab?: 'for_you' | 'following';
+  onTabChange?: (tab: 'for_you' | 'following') => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export const Feed: React.FC<FeedProps> = ({
@@ -40,15 +45,47 @@ export const Feed: React.FC<FeedProps> = ({
   onSearchChange,
   onToggleFollow,
   onOpenAuth,
-  isExploreView = false
+  isExploreView = false,
+  activeTab: controlledTab,
+  onTabChange,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false
 }) => {
-  const [activeTab, setActiveTab] = useState<'for_you' | 'following'>('for_you');
+  const [internalTab, setInternalTab] = useState<'for_you' | 'following'>('for_you');
+  const activeTab = controlledTab !== undefined ? controlledTab : internalTab;
+
+  const handleTabSelect = (tab: 'for_you' | 'following') => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
+
   const [composerText, setComposerText] = useState('');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!sentinelRef.current || !onLoadMore || !hasMore || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   const popularEmojis = ['😂', '🔥', '🚀', '❤️', '🤖', '👏', '💡', '💎', '🇮🇹', '⚡', '🎉', '🧠', '💬', '📈', '👀', '☕', '🍕', '🎯', '✨', '💯'];
   const popularCities = ['Roma, Italia', 'Milano, Italia', 'Napoli, Italia', 'Torino, Italia', 'Firenze, Italia', 'Bologna, Italia', 'Palermo, Italia', 'Venezia, Italia'];
@@ -148,7 +185,7 @@ export const Feed: React.FC<FeedProps> = ({
         ) : (
           <div className="flex border-twitter-border text-[15px] font-bold">
             <button
-              onClick={() => setActiveTab('for_you')}
+              onClick={() => handleTabSelect('for_you')}
               className="flex-1 py-3.5 text-center transition relative hover:bg-[#181818]"
             >
               <span className={activeTab === 'for_you' ? 'text-white' : 'text-twitter-muted'}>
@@ -160,7 +197,7 @@ export const Feed: React.FC<FeedProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('following')}
+              onClick={() => handleTabSelect('following')}
               className="flex-1 py-3.5 text-center transition relative hover:bg-[#181818]"
             >
               <span className={activeTab === 'following' ? 'text-white' : 'text-twitter-muted'}>
@@ -482,6 +519,20 @@ export const Feed: React.FC<FeedProps> = ({
               onSelectUser={onSelectUser}
             />
           ))
+        )}
+
+        {/* Infinite Scroll Sentinel & Loading Indicator */}
+        {hasMore && (
+          <div ref={sentinelRef} className="py-6 flex items-center justify-center text-twitter-muted">
+            {isLoadingMore ? (
+              <div className="flex items-center gap-2 text-xs font-semibold text-twitter-muted">
+                <div className="w-4 h-4 border-2 border-twitter-blue border-t-transparent rounded-full animate-spin" />
+                <span>Caricamento altri post...</span>
+              </div>
+            ) : (
+              <div className="h-6 w-full" />
+            )}
+          </div>
         )}
       </div>
     </div>

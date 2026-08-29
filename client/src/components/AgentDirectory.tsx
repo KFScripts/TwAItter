@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { IAgent } from '../types';
 import { api } from '../services/api';
-import { Users, Search, RefreshCw, Zap, MapPin, Sparkles } from 'lucide-react';
+import { Users, Search, RefreshCw, Zap, MapPin, Sparkles, UserPlus, Edit3 } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
 import { Avatar } from './Avatar';
+import { CreateProfileModal } from './CreateProfileModal';
+import { EditAgentModal } from './EditAgentModal';
 
 interface AgentDirectoryProps {
   agents: IAgent[];
@@ -18,6 +20,8 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'business' | 'personal'>('all');
   const [isGenerating, setIsGenerating] = useState(false);
   const [triggeringUser, setTriggeringUser] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<IAgent | null>(null);
 
   const handleGenerateSingle = async () => {
     setIsGenerating(true);
@@ -61,7 +65,7 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
   return (
     <div className="flex-1 border-r border-twitter-border min-h-screen bg-black overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-black/80 backdrop-blur-md z-10 p-4 border-b border-twitter-border flex items-center justify-between">
+      <div className="sticky top-0 bg-black/80 backdrop-blur-md z-10 p-4 border-b border-twitter-border flex items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-bold text-white">Profili & Brand ({agents.length})</h2>
           <p className="text-xs text-twitter-muted">
@@ -69,15 +73,45 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleGenerateSingle}
-          disabled={isGenerating}
-          className="flex items-center gap-1.5 bg-gradient-to-r from-twitter-blue to-purple-600 hover:opacity-90 disabled:opacity-50 text-white font-bold text-xs px-3.5 py-2 rounded-full shadow transition"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{isGenerating ? 'Generazione...' : 'Genera con AI'}</span>
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 bg-[#181a20] hover:bg-[#222630] border border-twitter-border text-white font-bold text-xs px-3 py-2 rounded-full transition shadow"
+            title="Crea un profilo manualmente con dettagli personalizzati"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-twitter-blue" />
+            <span>Crea Manuale</span>
+          </button>
+
+          <button
+            onClick={handleGenerateSingle}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-twitter-blue to-purple-600 hover:opacity-90 disabled:opacity-50 text-white font-bold text-xs px-3.5 py-2 rounded-full shadow transition"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isGenerating ? 'Generazione...' : 'Genera con AI'}</span>
+          </button>
+        </div>
       </div>
+
+      {showCreateModal && (
+        <CreateProfileModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            onRefreshAgents();
+          }}
+        />
+      )}
+
+      {editingAgent && (
+        <EditAgentModal
+          agent={editingAgent}
+          onClose={() => setEditingAgent(null)}
+          onUpdated={() => {
+            onRefreshAgents();
+          }}
+        />
+      )}
 
       {/* Search & Filter Tabs */}
       <div className="p-4 border-b border-twitter-border space-y-3 bg-[#080808]">
@@ -158,14 +192,24 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleTriggerTurn(agent.username)}
-                    disabled={triggeringUser === agent.username}
-                    title="Forza l'agente a fare un'azione subito"
-                    className="text-twitter-muted hover:text-yellow-400 p-1.5 rounded-full hover:bg-[#181818] transition disabled:opacity-50 flex-shrink-0"
-                  >
-                    <Zap className={`w-4 h-4 ${triggeringUser === agent.username ? 'animate-spin text-yellow-400' : ''}`} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingAgent(agent)}
+                      title="Modifica profilo e parametri AI"
+                      className="text-twitter-muted hover:text-twitter-blue p-1.5 rounded-full hover:bg-[#181818] transition flex-shrink-0"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => handleTriggerTurn(agent.username)}
+                      disabled={triggeringUser === agent.username}
+                      title="Forza l'agente a fare un'azione subito"
+                      className="text-twitter-muted hover:text-yellow-400 p-1.5 rounded-full hover:bg-[#181818] transition disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Zap className={`w-4 h-4 ${triggeringUser === agent.username ? 'animate-spin text-yellow-400' : ''}`} />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs text-[#ccd0d5] mt-2.5 line-clamp-2 leading-relaxed">
@@ -179,9 +223,16 @@ export const AgentDirectory: React.FC<AgentDirectoryProps> = ({
                   <span className="truncate">{agent.city || 'Italia'}</span>
                 </div>
 
-                <span className="font-mono bg-[#16181c] px-2 py-0.5 rounded text-[10px]">
-                  {agent.profession || 'Community'}
-                </span>
+                <div className="flex items-center gap-2">
+                  {agent.followersCount !== undefined && (
+                    <span className="text-[10px] text-twitter-muted">
+                      {agent.followersCount} follower
+                    </span>
+                  )}
+                  <span className="font-mono bg-[#16181c] px-2 py-0.5 rounded text-[10px]">
+                    {agent.profession || 'Community'}
+                  </span>
+                </div>
               </div>
             </div>
           );

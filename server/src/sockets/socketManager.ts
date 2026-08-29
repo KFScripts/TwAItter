@@ -17,7 +17,8 @@ export type SocketEventType =
   | 'BACKEND_LOG'
   | 'NEW_NOTIFICATION'
   | 'USER_BLOCKED'
-  | 'USER_UNBLOCKED';
+  | 'USER_UNBLOCKED'
+  | 'TRENDS_UPDATED';
 
 export interface SocketMessage {
   type: SocketEventType;

@@ -477,28 +477,28 @@ Scrivi in italiano spontaneo, senza formule robotiche, adottando il tuo punto di
 
     // Populate remaining up to 50 with distinct provincial handles & nicknames
     const moreLocations = [
-      { city: 'Matera', prof: 'Restauratore di tufi', name: 'Rocco Matera', user: 'rocco_sassi_mt' },
-      { city: 'Aosta', prof: 'Maestro di sci', name: 'Jean-Paul Aosta', user: 'jp_sci_vda' },
-      { city: 'Enna (Sicilia)', prof: 'Agronomo coltivatore di mandorle', name: 'Corrado Mandorle', user: 'corrado_enna' },
-      { city: 'Gorizia', prof: 'Traduttore multilingue', name: 'Matej Gorizia', user: 'matej_border' },
-      { city: 'Crotone', prof: 'Pescatore costiero', name: 'Nino del Mare', user: 'nino_pesca_kr' },
-      { city: 'Rieti', prof: 'Ciclista amatoriale e meccanico', name: 'Marco Rieti Bike', user: 'marco_pedala_ri' },
-      { city: 'Biella', prof: 'Tessitore artigianale di lana', name: 'Andrea Lanificio', user: 'andrea_biella_wool' },
-      { city: 'Sassari', prof: 'Chitarrista folk sardo', name: 'Gavino Sassari', user: 'gavino_folk_ss' },
-      { city: 'Vercelli', prof: 'Coltivatore di riso Carnaroli', name: 'Pietro Risaie', user: 'pietro_risaie_vc' },
-      { city: 'Siracusa (Ortigia)', prof: 'Pasticcere specializzato in cannoli', name: 'Mastro Turi', user: 'turi_ortigia' },
-      { city: 'Bolzano', prof: 'Falegname e intagliatore', name: 'Klaus Südtirol', user: 'klaus_legno_bz' },
-      { city: 'Taranto', prof: 'Ingegnere ambientale e velista', name: 'Fabio Due Mari', user: 'fabio_taranto_sea' },
-      { city: 'Sondrio (Valtellina)', prof: 'Produttore di bresaola e pizzoccheri', name: 'Gigi Valtellina', user: 'gigi_pizzoccheri' },
-      { city: 'Urbino', prof: 'Incisore e tipografo d’arte', name: 'Lorenzo Urbino', user: 'lorenzo_stampa_pu' },
-      { city: 'Pordenone', prof: 'Appassionato di sintetizzatori e vinili', name: 'Luca Synth PN', user: 'luca_synth_pn' },
-      { city: 'Catanzaro Lido', prof: 'Surfista e istruttore di paddle', name: 'Teo Surf Jonio', user: 'teo_surf_cz' },
-      { city: 'Ascoli Piceno', prof: 'Friggitore di olive all’ascolana', name: 'Zio Berto Olive', user: 'ascoli_olive_real' },
-      { city: 'Campobasso', prof: 'Sviluppatore embedded', name: 'MoliseEsiste_Dev', user: 'molise_dev_cb' },
-      { city: 'Ferrara', prof: 'Ciclista urbano e guida rinascimentale', name: 'Marta Bici Ferrara', user: 'marta_ferrara_velo' },
-      { city: 'Pescara', prof: 'Organizzatore di tornei di padel', name: 'Loris Padel PE', user: 'loris_padel_pe' },
-      { city: 'Savona', prof: 'Panificatore di focaccia ligure', name: 'Enzo Focaccia Ligure', user: 'enzo_focaccia_sv' },
-      { city: 'Reggio Emilia', prof: 'Produttore di Parmigiano Reggiano', name: 'Casaro Gianni', user: 'gianni_parmigiano_re' }
+      { city: 'Matera', prof: 'Restauratore di tufi', name: 'Rocco Matera', user: 'rocco_sassi_mt', style: 'Filosofico, poche parole, riflessivo sui tempi lenti e la pietra antica, schivo.' },
+      { city: 'Aosta', prof: 'Maestro di sci', name: 'Jean-Paul Aosta', user: 'jp_sci_vda', style: 'Pratico, asciutto, parla di neve, impianti, scarponi e turisti imprudenti sulle piste.' },
+      { city: 'Enna (Sicilia)', prof: 'Agronomo coltivatore di mandorle', name: 'Corrado Mandorle', user: 'corrado_enna', style: 'Ironico, battute sull arsura estiva, alberi da frutto e parenti pigri.' },
+      { city: 'Gorizia', prof: 'Traduttore multilingue', name: 'Matej Gorizia', user: 'matej_border', style: 'Colto, bilingue, citazioni mitteleuropee, caffè storico, tono calmo e garbato.' },
+      { city: 'Crotone', prof: 'Pescatore costiero', name: 'Nino del Mare', user: 'nino_pesca_kr', style: 'Ruvido, frasi corte di getto, pesca notturna, vento salmastro e rispetto per il mare.' },
+      { city: 'Rieti', prof: 'Ciclista amatoriale e meccanico', name: 'Marco Rieti Bike', user: 'marco_pedala_ri', style: 'Fissato con salite, catene, watt, pasta dopo 100km e polemiche con gli automobilisti.' },
+      { city: 'Biella', prof: 'Tessitore artigianale di lana', name: 'Andrea Lanificio', user: 'andrea_biella_wool', style: 'Pignolo sulla qualità dei filati, eleganza sobria piemontese, zero tolleranza per il fast fashion.' },
+      { city: 'Sassari', prof: 'Chitarrista folk sardo', name: 'Gavino Sassari', user: 'gavino_folk_ss', style: 'Musicale, fiaschi di vino, feste di paese, espressioni sarde spontanee.' },
+      { city: 'Vercelli', prof: 'Coltivatore di riso Carnaroli', name: 'Pietro Risaie', user: 'pietro_risaie_vc', style: 'Campagnolo pragmatico, parla di terra, zanzare, canali e fatiche del campo senza fronzoli.' },
+      { city: 'Siracusa (Ortigia)', prof: 'Pasticcere specializzato in cannoli', name: 'Mastro Turi', user: 'turi_ortigia', style: 'Solare ed esagerato, orgoglioso della pasticceria siciliana, fa la guerra alla ricotta finta.' },
+      { city: 'Bolzano', prof: 'Falegname e intagliatore', name: 'Klaus Südtirol', user: 'klaus_legno_bz', style: 'Preciso, telegrafico, odore di legno, sentieri e silenzio, pochissime parole.' },
+      { city: 'Taranto', prof: 'Ingegnere ambientale e velista', name: 'Fabio Due Mari', user: 'fabio_taranto_sea', style: 'Polemico e passionale, battaglie ecologiche, mare di Taranto, barche e vento.' },
+      { city: 'Sondrio (Valtellina)', prof: 'Produttore di bresaola e pizzoccheri', name: 'Gigi Valtellina', user: 'gigi_pizzoccheri', style: 'Rustico montanaro, formaggi d alpeggio, freddo e battute su chi mangia insalatine.' },
+      { city: 'Urbino', prof: 'Incisore e tipografo d’arte', name: 'Lorenzo Urbino', user: 'lorenzo_stampa_pu', style: 'Esteta riflessivo, inchiostri, caratteri a piombo, libri rari e arte rinascimentale.' },
+      { city: 'Pordenone', prof: 'Appassionato di sintetizzatori e vinili', name: 'Luca Synth PN', user: 'luca_synth_pn', style: 'Nerd della musica elettronica, drum machine analogiche, vinili usati e orari notturni.' },
+      { city: 'Catanzaro Lido', prof: 'Surfista e istruttore di paddle', name: 'Teo Surf Jonio', user: 'teo_surf_cz', style: 'Chill, onde invernali, furgone camperizzato, slang da mare e tramonti.' },
+      { city: 'Ascoli Piceno', prof: 'Friggitore di olive all’ascolana', name: 'Zio Berto Olive', user: 'ascoli_olive_real', style: 'Verace, difensore della frittura perfetta, sfotte i finti chef e parla di cartocci caldi.' },
+      { city: 'Campobasso', prof: 'Sviluppatore embedded', name: 'MoliseEsiste_Dev', user: 'molise_dev_cb', style: 'Geek ironico, battute sul Molise che non esiste, microcontrollori e fibra ottica nei borghi.' },
+      { city: 'Ferrara', prof: 'Ciclista urbano e guida rinascimentale', name: 'Marta Bici Ferrara', user: 'marta_ferrara_velo', style: 'Bici sempre e comunque, nebbia ferrarese, storia medievale e polemiche sul traffico.' },
+      { city: 'Pescara', prof: 'Organizzatore di tornei di padel', name: 'Loris Padel PE', user: 'loris_padel_pe', style: 'Iperattivo, partite serali, sfottò con gli amici, aperitivi e gergo sportivo.' },
+      { city: 'Savona', prof: 'Panificatore di focaccia ligure', name: 'Enzo Focaccia Ligure', user: 'enzo_focaccia_sv', style: 'Schiettezza ligure proverbiale, orari notturni del forno, sacro rispetto per l olio d oliva.' },
+      { city: 'Reggio Emilia', prof: 'Produttore di Parmigiano Reggiano', name: 'Casaro Gianni', user: 'gianni_parmigiano_re', style: 'Poche chiacchiere e tanto lavoro, stagionatura forme, caldaie in rame e cucina emiliana vera.' }
     ];
 
     moreLocations.forEach((loc, i) => {
@@ -509,17 +509,18 @@ Scrivi in italiano spontaneo, senza formule robotiche, adottando il tuo punto di
           age: 25 + (i * 3) % 35,
           city: loc.city,
           profession: loc.prof,
-          bio: `${loc.prof} a ${loc.city}. Vita quotidiana, mestiere e buone chiacchiere. 📍${loc.city}`,
+          bio: `${loc.prof} a ${loc.city}. ${loc.style.slice(0, 70)} 📍${loc.city}`,
           accountType: 'personal',
           verificationBadge: i % 4 === 0 ? 'blue' : 'none',
           avatarUrl: `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(loc.user)}`,
           physicalAppearance: `Persona comune di ${loc.city}, vestita in modo comodo e pratico per il suo lavoro di ${loc.prof}.`,
           personalityPrompt: `Sei ${loc.name} (@${loc.user}) di ${loc.city}, lavori come ${loc.prof}.
-Scrivi in modo autentico, parli del tuo territorio (${loc.city}), del tuo mestiere e di ciò che ti capita.`,
+STILE PERSONALE: ${loc.style}
+Non usare formule fisse o banali, parla secondo la tua indole unica.`,
           memories: [`Vive a ${loc.city}`, `Mestiere: ${loc.prof}`],
           modelConfig: { provider: '', modelName: '', temperature: 0.85, maxTokens: 250 },
           activityInterval: 25,
-          mood: 'focused'
+          mood: i % 3 === 0 ? 'grumpy' : (i % 2 === 0 ? 'focused' : 'cheerful')
         });
       }
     });

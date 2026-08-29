@@ -72,7 +72,7 @@ export const api = {
     return res.json();
   },
 
-  toggleFollow: async (targetUsername: string): Promise<{ following: string[]; isFollowing: boolean }> => {
+  toggleFollow: async (targetUsername: string): Promise<{ following: string[]; isFollowing: boolean; targetFollowersCount?: number }> => {
     const res = await fetch(`${API_BASE}/auth/follow/${targetUsername}`, {
       method: 'POST',
       headers: getAuthHeaders()
@@ -81,18 +81,40 @@ export const api = {
   },
 
   // Posts & Dynamic Trends
-  getPosts: async (params?: { tag?: string; username?: string; limit?: number; viewerUsername?: string }): Promise<IPost[]> => {
+  getPosts: async (params?: {
+    tag?: string;
+    username?: string;
+    limit?: number;
+    cursor?: string | null;
+    feedType?: string;
+    viewerUsername?: string;
+  }): Promise<{ posts: IPost[]; nextCursor: string | null; hasMore: boolean }> => {
     const query = new URLSearchParams();
     if (params?.tag) query.set('tag', params.tag);
     if (params?.username) query.set('username', params.username);
     if (params?.limit) query.set('limit', params.limit.toString());
+    if (params?.cursor) query.set('cursor', params.cursor);
+    if (params?.feedType) query.set('feedType', params.feedType);
     if (params?.viewerUsername) query.set('viewerUsername', params.viewerUsername);
     const res = await fetch(`${API_BASE}/posts?${query.toString()}`);
-    return res.json();
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return { posts: data, nextCursor: null, hasMore: false };
+    }
+    return data;
   },
 
   getDynamicTrends: async (): Promise<ITrendItem[]> => {
     const res = await fetch(`${API_BASE}/posts/trends`);
+    return res.json();
+  },
+
+  forceTrend: async (username?: string): Promise<{ message: string; topic: string; agent: string; post: IPost }> => {
+    const res = await fetch(`${API_BASE}/agents/force-trend`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ username })
+    });
     return res.json();
   },
 
@@ -144,8 +166,10 @@ export const api = {
   },
 
   // Agents
-  getAgents: async (): Promise<IAgent[]> => {
-    const res = await fetch(`${API_BASE}/agents`);
+  getAgents: async (params?: { sortBy?: 'followers' | 'username' }): Promise<IAgent[]> => {
+    const query = new URLSearchParams();
+    if (params?.sortBy) query.set('sortBy', params.sortBy);
+    const res = await fetch(`${API_BASE}/agents?${query.toString()}`);
     return res.json();
   },
 
@@ -193,8 +217,16 @@ export const api = {
   },
 
   // DMs
-  getConversations: async (): Promise<IConversation[]> => {
-    const res = await fetch(`${API_BASE}/dms/conversations`);
+  getConversations: async (username?: string): Promise<IConversation[]> => {
+    const query = username ? `?username=${encodeURIComponent(username)}` : '';
+    const res = await fetch(`${API_BASE}/dms/conversations${query}`, {
+      headers: getAuthHeaders()
+    });
+    return res.json();
+  },
+
+  getAdminConversations: async (): Promise<IConversation[]> => {
+    const res = await fetch(`${API_BASE}/dms/admin/all-conversations`);
     return res.json();
   },
 
@@ -354,6 +386,20 @@ export const api = {
   },
 
   // Relationships & Blocks
+  getAllRelationshipsAdmin: async (): Promise<IRelationship[]> => {
+    const res = await fetch(`${API_BASE}/relationships/admin/all`);
+    return res.json();
+  },
+
+  forceUnblockAdmin: async (sourceUsername: string, targetUsername: string): Promise<IRelationship> => {
+    const res = await fetch(`${API_BASE}/relationships/admin/force-unblock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceUsername, targetUsername })
+    });
+    return res.json();
+  },
+
   getRelationships: async (username: string): Promise<{ relationships: IRelationship[]; blockedList: string[] }> => {
     const res = await fetch(`${API_BASE}/relationships/${username}`);
     return res.json();

@@ -164,14 +164,31 @@ router.get('/trends', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { tag, username, search, limit = 50, viewerUsername } = req.query;
+    const { tag, username, search, limit = 20, cursor, feedType = 'for_you', viewerUsername } = req.query;
+    const fetchLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
     const filter: any = {};
 
+    let userFollowing: string[] = [];
     if (viewerUsername && typeof viewerUsername === 'string') {
-      const blockedList = await RelationshipService.getBlockedUsernamesFor(viewerUsername);
+      const [blockedList, currentUserObj] = await Promise.all([
+        RelationshipService.getBlockedUsernamesFor(viewerUsername),
+        User.findOne({ username: viewerUsername }).select('following').lean()
+      ]);
+
       if (blockedList.length > 0) {
         filter.authorUsername = { $nin: blockedList };
       }
+
+      if (currentUserObj && Array.isArray(currentUserObj.following)) {
+        userFollowing = currentUserObj.following;
+      }
+    }
+
+    if (feedType === 'following') {
+      if (!viewerUsername || userFollowing.length === 0) {
+        return res.json({ posts: [], nextCursor: null, hasMore: false });
+      }
+      filter.authorUsername = { $in: userFollowing };
     }
 
     if (tag) filter.tags = tag;
@@ -185,12 +202,31 @@ router.get('/', async (req: Request, res: Response) => {
       ];
     }
 
-    const posts = await Post.find(filter)
+    if (cursor && typeof cursor === 'string') {
+      const cursorDate = new Date(cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        filter.createdAt = { $lt: cursorDate };
+      }
+    }
+
+    const rawPosts = await Post.find(filter)
       .sort({ createdAt: -1 })
-      .limit(Number(limit))
+      .limit(fetchLimit + 1)
       .lean();
 
-    res.json(await attachAuthorsToPosts(posts));
+    const hasMore = rawPosts.length > fetchLimit;
+    const slicedPosts = hasMore ? rawPosts.slice(0, fetchLimit) : rawPosts;
+    const populatedPosts = await attachAuthorsToPosts(slicedPosts);
+
+    const nextCursor = slicedPosts.length > 0
+      ? slicedPosts[slicedPosts.length - 1].createdAt
+      : null;
+
+    res.json({
+      posts: populatedPosts,
+      nextCursor,
+      hasMore
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

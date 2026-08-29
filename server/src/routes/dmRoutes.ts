@@ -30,6 +30,49 @@ async function getParticipantsMap(usernames: string[]) {
 
 router.get('/conversations', async (req: Request, res: Response) => {
   try {
+    const rawUser = (req.query.username as string) || (req.headers['x-username'] as string) || (req.headers['authorization'] as string);
+    const username = rawUser ? rawUser.replace('Bearer ', '').trim() : '';
+
+    const filter: any = {};
+    if (username && username !== 'admin' && req.query.all !== 'true') {
+      filter.$or = [{ senderUsername: username }, { recipientUsername: username }];
+    } else if (!username && req.query.all !== 'true') {
+      return res.json([]);
+    }
+
+    const messages = await DirectMessage.find(filter).sort({ createdAt: -1 }).lean();
+    const map = new Map<string, any>();
+
+    for (const msg of messages) {
+      if (!map.has(msg.conversationId)) {
+        map.set(msg.conversationId, msg);
+      }
+    }
+
+    const conversationList = Array.from(map.values());
+    const usernames = new Set<string>();
+    conversationList.forEach((c) => {
+      usernames.add(c.senderUsername);
+      usernames.add(c.recipientUsername);
+    });
+
+    const userMap = await getParticipantsMap(Array.from(usernames));
+
+    const populated = conversationList.map((c) => ({
+      conversationId: c.conversationId,
+      lastMessage: c,
+      sender: userMap.get(c.senderUsername) || { username: c.senderUsername, displayName: c.senderUsername, avatarUrl: '' },
+      recipient: userMap.get(c.recipientUsername) || { username: c.recipientUsername, displayName: c.recipientUsername, avatarUrl: '' }
+    }));
+
+    res.json(populated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/admin/all-conversations', async (req: Request, res: Response) => {
+  try {
     const messages = await DirectMessage.find().sort({ createdAt: -1 }).lean();
     const map = new Map<string, any>();
 

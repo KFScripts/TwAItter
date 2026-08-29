@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ISettings, IPlatformStats, IModelConfigItem, IBackendLog } from '../types';
 import { api } from '../services/api';
 import { BackendLogConsole } from './BackendLogConsole';
-import { Key, Gauge, Image, Globe, Plus, Trash2, Check, Sparkles, Eye, Users, Power, RotateCcw, Server } from 'lucide-react';
+import { AdminDashboard } from './AdminDashboard';
+import { Key, Gauge, Image, Globe, Plus, Trash2, Check, Sparkles, Eye, Users, Power, RotateCcw, Server, Shield, Sliders } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: ISettings | null;
@@ -17,6 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   backendLogs,
   onClearBackendLogs
 }) => {
+  const [activeSection, setActiveSection] = useState<'ai_config' | 'admin_dashboard'>('ai_config');
   const [language, setLanguage] = useState('it');
   const [defaultProvider, setDefaultProvider] = useState('openrouter');
   const [defaultModel, setDefaultModel] = useState('meta-llama/llama-3.3-70b-instruct:free');
@@ -187,31 +189,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="flex-1 border-r border-twitter-border min-h-screen bg-black overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="pb-4 border-b border-twitter-border flex items-center justify-between">
+        {/* Header with Section Navigation Tabs */}
+        <div className="pb-4 border-b border-twitter-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white">Configurazione Gateway & Protocolli Risposta</h2>
-            <p className="text-sm text-twitter-muted mt-1">
-              Imposta endpoint custom, API Key e formato risposta esatto (/v1/responses, /chat/completions, /sdapi/v1/txt2img, /v1/messages, ecc.).
+            <h2 className="text-2xl font-bold text-white">
+              {activeSection === 'ai_config' ? 'Configurazione Gateway & Modelli' : 'Dashboard Amministratore'}
+            </h2>
+            <p className="text-xs text-twitter-muted mt-1">
+              {activeSection === 'ai_config'
+                ? 'Imposta endpoint custom, API Key e formato risposta esatto (/v1/responses, /chat/completions, ecc.).'
+                : 'Monitora tutti i messaggi privati (DMs), relazioni e blocchi della community.'}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handlePopulate50}
-            disabled={isPopulating}
-            className="flex items-center gap-2 bg-twitter-blue hover:bg-twitter-hover disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-full transition shadow"
-          >
-            <Users className="w-4 h-4" />
-            <span>{isPopulating ? 'Generazione...' : 'Popola 50 Profili & Brand'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveSection('ai_config')}
+              className={`px-4 py-2 rounded-full font-bold text-xs transition flex items-center gap-1.5 ${
+                activeSection === 'ai_config'
+                  ? 'bg-white text-black shadow'
+                  : 'bg-[#16181c] text-twitter-muted hover:text-white border border-twitter-border'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Gateway AI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSection('admin_dashboard')}
+              className={`px-4 py-2 rounded-full font-bold text-xs transition flex items-center gap-1.5 ${
+                activeSection === 'admin_dashboard'
+                  ? 'bg-red-500 text-white shadow'
+                  : 'bg-[#16181c] text-twitter-muted hover:text-white border border-twitter-border'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Admin Dashboard</span>
+            </button>
+          </div>
         </div>
 
-        {populateMsg && (
-          <div className="bg-green-500/20 border border-green-500/40 text-green-300 px-4 py-2.5 rounded-xl text-xs font-semibold">
-            {populateMsg}
-          </div>
-        )}
+        {activeSection === 'admin_dashboard' ? (
+          <AdminDashboard agents={[]} />
+        ) : (
+          <>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handlePopulate50}
+                disabled={isPopulating}
+                className="flex items-center gap-2 bg-twitter-blue hover:bg-twitter-hover disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-full transition shadow"
+              >
+                <Users className="w-4 h-4" />
+                <span>{isPopulating ? 'Generazione...' : 'Popola 50 Profili & Brand'}</span>
+              </button>
+            </div>
+
+            {populateMsg && (
+              <div className="bg-green-500/20 border border-green-500/40 text-green-300 px-4 py-2.5 rounded-xl text-xs font-semibold">
+                {populateMsg}
+              </div>
+            )}
 
         {/* Stats */}
         {stats && (
@@ -679,6 +719,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
           </div>
         </form>
+        </>
+        )}
       </div>
     </div>
   );
