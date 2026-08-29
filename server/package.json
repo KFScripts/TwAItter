@@ -7,21 +7,29 @@
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
     "build": "tsc",
     "test:content-style": "npm run build && node scripts/test-content-style.cjs",
+    "test:agent-sources": "npm run build && node scripts/test-agent-sources.cjs",
+    "test": "npm run test:content-style && node scripts/test-agent-sources.cjs",
     "start": "node dist/index.js",
     "seed": "ts-node src/scripts/seed.ts"
   },
   "dependencies": {
     "axios": "^1.7.9",
+    "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "mongoose": "^8.9.5",
-    "ws": "^8.18.0"
+    "multer": "^2.2.0",
+    "pdf-parse": "^1.1.1",
+    "ws": "^8.18.0",
+    "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.13.1",
+    "@types/pdf-parse": "^1.1.5",
     "@types/ws": "^8.5.14",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",

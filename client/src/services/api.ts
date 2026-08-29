@@ -1,4 +1,4 @@
-import { IAgent, IPost, IThreadReply, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser, IBackendLog, INotification } from '../types';
+import { IAgent, IAgentSource, IPost, IThreadReply, IDirectMessage, IConversation, ISupportTicket, ISettings, IPlatformStats, IUser, IBackendLog, INotification, IRelationship } from '../types';
 
 const API_BASE = '/api';
 
@@ -9,14 +9,20 @@ export interface ITrendItem {
   postCount: number;
 }
 
-function getAuthHeaders(): Record<string, string> {
+function getAuthHeaders(includeContentType: boolean = true): Record<string, string> {
   const token = localStorage.getItem('twaitter_token') || '';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = includeContentType ? { 'Content-Type': 'application/json' } : {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
     headers['x-username'] = token;
   }
   return headers;
+}
+
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Richiesta fallita (${res.status})`);
+  return data as T;
 }
 
 export const api = {
@@ -88,6 +94,8 @@ export const api = {
     cursor?: string | null;
     feedType?: string;
     viewerUsername?: string;
+    search?: string;
+    onlyRoots?: boolean;
   }): Promise<{ posts: IPost[]; nextCursor: string | null; hasMore: boolean }> => {
     const query = new URLSearchParams();
     if (params?.tag) query.set('tag', params.tag);
@@ -96,6 +104,8 @@ export const api = {
     if (params?.cursor) query.set('cursor', params.cursor);
     if (params?.feedType) query.set('feedType', params.feedType);
     if (params?.viewerUsername) query.set('viewerUsername', params.viewerUsername);
+    if (params?.search) query.set('search', params.search);
+    if (params?.onlyRoots) query.set('onlyRoots', 'true');
     const res = await fetch(`${API_BASE}/posts?${query.toString()}`);
     const data = await res.json();
     if (Array.isArray(data)) {
@@ -191,19 +201,91 @@ export const api = {
   createAgent: async (data: Partial<IAgent>): Promise<IAgent> => {
     const res = await fetch(`${API_BASE}/agents`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return res.json();
+    return parseJsonResponse<IAgent>(res);
   },
 
   updateAgent: async (username: string, data: Partial<IAgent>): Promise<IAgent> => {
     const res = await fetch(`${API_BASE}/agents/${username}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    return res.json();
+    return parseJsonResponse<IAgent>(res);
+  },
+
+  getAgentSources: async (username: string): Promise<IAgentSource[]> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources`, { headers: getAuthHeaders() });
+    return parseJsonResponse<IAgentSource[]>(res);
+  },
+
+  addAgentTextSource: async (
+    username: string,
+    data: { title?: string; text: string; format?: 'text' | 'markdown' }
+  ): Promise<IAgentSource> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/text`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseJsonResponse<IAgentSource>(res);
+  },
+
+  addAgentUrlSource: async (username: string, data: { title?: string; url: string }): Promise<IAgentSource> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/url`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return parseJsonResponse<IAgentSource>(res);
+  },
+
+  addAgentFileSource: async (username: string, file: File, title?: string): Promise<IAgentSource> => {
+    const body = new FormData();
+    body.append('file', file);
+    if (title) body.append('title', title);
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/file`, {
+      method: 'POST',
+      headers: getAuthHeaders(false),
+      body
+    });
+    return parseJsonResponse<IAgentSource>(res);
+  },
+
+  setAgentSourceEnabled: async (username: string, sourceId: string, enabled: boolean): Promise<IAgentSource> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/${sourceId}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled })
+    });
+    return parseJsonResponse<IAgentSource>(res);
+  },
+
+  refreshAgentSource: async (username: string, sourceId: string): Promise<IAgentSource> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/${sourceId}/refresh`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return parseJsonResponse<IAgentSource>(res);
+  },
+
+  deleteAgentSource: async (username: string, sourceId: string): Promise<void> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/${sourceId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    await parseJsonResponse(res);
+  },
+
+  testAgentSourceRetrieval: async (username: string, query: string): Promise<{ context: string }> => {
+    const res = await fetch(`${API_BASE}/agents/${username}/sources/test-retrieval`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ query })
+    });
+    return parseJsonResponse<{ context: string }>(res);
   },
 
   deleteAgent: async (username: string) => {

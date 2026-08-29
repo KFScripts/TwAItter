@@ -320,7 +320,7 @@ export const App: React.FC = () => {
         });
         if (currentUser && (payload?.sourceUsername === currentUser.username || payload?.targetUsername === currentUser.username)) {
           api.getPosts({ limit: 50, onlyRoots: true, viewerUsername: currentUser.username })
-            .then(setPosts)
+            .then((result) => setPosts(result.posts || []))
             .catch(console.error);
         }
         api.getConversations().then(setConversations).catch(console.error);

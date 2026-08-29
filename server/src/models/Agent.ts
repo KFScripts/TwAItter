@@ -13,6 +13,12 @@ export interface IAgent extends Document {
   personalityPrompt: string;
   physicalAppearance: string;
   memories: string[];
+  knowledgeConfig: {
+    enabled: boolean;
+    webSearchEnabled: boolean;
+    maxSourcesPerPrompt: number;
+    maxContextChars: number;
+  };
   modelConfig: {
     provider: string;
     modelName: string;
@@ -53,6 +59,12 @@ const agentSchema = new Schema<IAgent>(
     personalityPrompt: { type: String, required: true },
     physicalAppearance: { type: String, default: '' },
     memories: [{ type: String }],
+    knowledgeConfig: {
+      enabled: { type: Boolean, default: true },
+      webSearchEnabled: { type: Boolean, default: false },
+      maxSourcesPerPrompt: { type: Number, default: 4, min: 1, max: 8 },
+      maxContextChars: { type: Number, default: 5000, min: 1000, max: 12000 }
+    },
     modelConfig: {
       provider: { type: String, default: '' },
       modelName: { type: String, default: '' },

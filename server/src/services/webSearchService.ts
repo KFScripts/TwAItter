@@ -1,4 +1,5 @@
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export interface RssItem {
   title: string;
@@ -7,9 +8,17 @@ export interface RssItem {
   pubDate?: string;
 }
 
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 export class WebSearchService {
   private static readonly USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+  private static readonly searchCache = new Map<string, { expiresAt: number; results: WebSearchResult[] }>();
+  private static readonly SEARCH_CACHE_MS = 20 * 60 * 1000;
 
   private static cleanTitle(text: string): string {
     return text
@@ -90,5 +99,55 @@ export class WebSearchService {
       seen.add(key);
       return true;
     });
+  }
+
+  public static async searchWeb(query: string, limit: number = 4): Promise<WebSearchResult[]> {
+    const normalizedQuery = query.replace(/\s+/g, ' ').trim().slice(0, 240);
+    if (normalizedQuery.length < 3) return [];
+
+    const cacheKey = `${normalizedQuery.toLowerCase()}::${limit}`;
+    const cached = this.searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.results;
+
+    try {
+      const response = await axios.get('https://html.duckduckgo.com/html/', {
+        params: { q: normalizedQuery },
+        timeout: 8000,
+        responseType: 'text',
+        maxContentLength: 2 * 1024 * 1024,
+        headers: {
+          'User-Agent': this.USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml'
+        }
+      });
+      const $ = cheerio.load(String(response.data || ''));
+      const results: WebSearchResult[] = [];
+
+      $('.result').each((_, element) => {
+        if (results.length >= Math.max(1, Math.min(limit, 8))) return false;
+        const link = $(element).find('.result__a').first();
+        const title = link.text().replace(/\s+/g, ' ').trim();
+        const rawHref = link.attr('href') || '';
+        const snippet = $(element).find('.result__snippet').first().text().replace(/\s+/g, ' ').trim();
+        if (!title || !rawHref) return;
+
+        let url = rawHref;
+        try {
+          const parsed = new URL(rawHref, 'https://duckduckgo.com');
+          url = parsed.searchParams.get('uddg') || parsed.toString();
+        } catch {}
+        if (!/^https?:\/\//i.test(url)) return;
+        results.push({ title, url, snippet: snippet.slice(0, 500) });
+      });
+
+      this.searchCache.set(cacheKey, {
+        expiresAt: Date.now() + this.SEARCH_CACHE_MS,
+        results
+      });
+      return results;
+    } catch (error: any) {
+      console.warn(`[Web Search] Ricerca fallita per "${normalizedQuery}": ${error.message}`);
+      return [];
+    }
   }
 }

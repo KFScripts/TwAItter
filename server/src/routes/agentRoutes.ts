@@ -3,6 +3,7 @@ import { Agent } from '../models/Agent';
 import { User } from '../models/User';
 import { AgentEngine } from '../services/agentEngine';
 import { AgentGenerator } from '../services/agentGenerator';
+import { AgentSourceService } from '../services/agentSourceService';
 
 const router = Router();
 
@@ -74,6 +75,7 @@ router.post('/force-trend', async (req: Request, res: Response) => {
 
 router.post('/populate-50', async (req: Request, res: Response) => {
   try {
+    await AgentSourceService.deleteAllSources();
     await Agent.deleteMany({});
     const agentsList = AgentGenerator.generate50ItalianAgents();
     const created = await Agent.insertMany(agentsList);
@@ -124,6 +126,7 @@ router.post('/', async (req: Request, res: Response) => {
       physicalAppearance,
       mood,
       modelConfig,
+      knowledgeConfig,
       activityInterval
     } = req.body;
 
@@ -144,6 +147,7 @@ router.post('/', async (req: Request, res: Response) => {
       memories: [`Creato su TwAItter`, `Professione: ${profession || 'Creativo'}`],
       mood: mood || 'focused',
       modelConfig: modelConfig || {},
+      knowledgeConfig: knowledgeConfig || {},
       activityInterval: activityInterval || 20
     });
 
@@ -182,6 +186,7 @@ router.delete('/:username', async (req: Request, res: Response) => {
   try {
     const deleted = await Agent.findOneAndDelete({ username: req.params.username });
     if (!deleted) return res.status(404).json({ error: 'Agent not found' });
+    await AgentSourceService.deleteAllForAgent(String(req.params.username));
     res.json({ message: 'Agent deleted' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
