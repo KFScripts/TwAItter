@@ -51,14 +51,28 @@ assert.ok(clichéIssues.some((issue) => issue.includes('cliché')));
 
 const duplicateIssues = collectContentQualityIssues(
   'la grandine ha distrutto diecimila auto in pochi minuti',
-  ['La grandine ha distrutto 10mila auto in pochi minuti a Cremona'],
+  ['La grandine ha distrutto diecimila auto in pochi minuti a Cremona'],
   'social'
 );
 assert.ok(duplicateIssues.includes('troppo simile a un contenuto recente'));
 
+const relatedButDifferentIssues = collectContentQualityIssues(
+  'grandine anche qui. il parabrezza ha deciso di arrendersi',
+  ['La grandine ha distrutto diecimila auto in pochi minuti a Cremona'],
+  'social'
+);
+assert.deepEqual(relatedButDifferentIssues, []);
+
+const normalQuestionIssues = collectContentQualityIssues(
+  'voi cosa ne pensate del finale?',
+  [],
+  'social'
+);
+assert.deepEqual(normalQuestionIssues, []);
+
 const emojiIssues = collectContentQualityIssues(
   'anche oggi benissimo 💀',
-  ['ieri un capolavoro 💀', 'tutto regolare 💀'],
+  ['ieri un capolavoro 💀', 'tutto regolare 💀', 'giornata impeccabile 💀'],
   'social'
 );
 assert.ok(emojiIssues.some((issue) => issue.includes('emoji-firma')));
@@ -84,4 +98,4 @@ const naturalIssues = collectContentQualityIssues(
 );
 assert.deepEqual(naturalIssues, []);
 
-console.log('contentStyleService: 9 test superati');
+console.log('contentStyleService: 11 test superati');

@@ -295,16 +295,13 @@ Rapporto e sentimenti verso @${dm.senderUsername}:
 - Interesse sentimentale: ${currentRel.romance} (0 a 100)
 - Note storiche: ${currentRel.notes || 'Nessuna nota specifica'}
 
-Stai parlando in CHAT PRIVATA (DM) con @${dm.senderUsername}.
-REGOLE DM ED EVOLUZIONE RELAZIONI:
-- DIVIETO ASSOLUTO DI FORMALISMO O FRASI DA BOT/ASSISTENTE AI (niente "Certamente", "Come posso aiutarti", "In merito a quanto affermi").
-- DIVIETO EMOJI DA BOT: Non infarcire i messaggi di emoji tematiche decorative (niente ✨, 🚀, 🤖, 🍕 ecc.). Scrivi testo naturale e asciutto, le persone reali usano raramente emoji.
-- Rispondi come una persona vera e spontanea sui social: informale, breve (1-3 frasi), adatta al tuo carattere, umore e livello di confidenza con questa persona.
-- Puoi essere affettuoso/a con chi ti piace o è amico, sarcastico/a, freddo/a con chi non sopporti, o mandarlo a quel paese se ti offende o fa spam.
-- Se ti invia una foto, meme o screenshot, leggi attentamente la descrizione visiva e l'OCR di tutto il testo contenuto e commentalo direttamente con reazione naturale!
-- Se l'interlocutore è insopportabile, tossico, offensivo o ti fa arrabbiare seriamente, puoi decidere di BLOCCARLO impostando "blockUser": true.
-- Valuta come cambia il tuo sentimento dopo questo messaggio aggiornando "deltaAffinity" (-25 a +25), "deltaTrust" (-25 a +25) e "deltaRomance" (-20 a +20).
-- Se il messaggio non merita risposta o vuoi ignorarlo, imposta "ignore": true.
+Stai parlando in chat privata con @${dm.senderUsername}. Continua la conversazione dall’interno del rapporto, senza presentarti e senza ripetere il contesto.
+- Rispondi prima di tutto al dettaglio concreto dell’ultimo messaggio. Anche una parola, una reazione breve o una domanda sono risposte complete se suonano naturali.
+- Il livello di confidenza decide cosa resta sottinteso: con un amico puoi essere diretto, con uno sconosciuto più cauto, con chi detesti freddo o tagliente.
+- Formalità, emoji, abbreviazioni e punteggiatura seguono le abitudini di @${recipient.username}, non uno stile standard da chatbot.
+- Se c’è un’immagine, meme o screenshot, reagisci a ciò che mostra o al testo OCR come farebbe questa persona.
+- Se il messaggio non merita risposta puoi usare ignore. Se supera davvero un limite personale puoi usare blockUser.
+- Aggiorna deltaAffinity (-25 a +25), deltaTrust (-25 a +25) e deltaRomance (-20 a +20) solo in misura coerente con ciò che è successo.
 - Lingua: ${language === 'it' ? 'ITALIANO' : language.toUpperCase()}.
 
 ${dmStyleBrief}
@@ -350,7 +347,7 @@ Rispondi al messaggio in DM (formato JSON):`;
                   { role: 'assistant', content: lastRaw.slice(0, 1000) },
                   {
                     role: 'user',
-                    content: `Riscrivi lo stesso JSON correggendo SOLO la naturalezza di "reply". Problemi rilevati: ${lastIssues.join('; ') || 'JSON non valido'}. Non cambiare intenzione, relazione o decisione di blocco/ignora. Niente spiegazioni.`
+                    content: `Mantieni intenzione, relazione e decisione di blocco/ignora. Riscrivi solo "reply" partendo dalla cosa concreta a cui @${recipient.username} reagirebbe nel messaggio ricevuto. Problemi da correggere: ${lastIssues.join('; ') || 'JSON non valido'}. Inserisci soltanto ciò che digiterebbe in chat, poi restituisci il JSON senza spiegazioni.`
                   }
                 ];
 
@@ -376,6 +373,16 @@ Rispondi al messaggio in DM (formato JSON):`;
             }
             lastIssues = collectContentQualityIssues(String(candidateReply), recentConversationText, 'dm');
             if (lastIssues.length === 0) break;
+
+            const blockingIssues = lastIssues.filter(
+              (issue) => issue === 'testo vuoto' || issue.includes('troppo lungo') || issue.includes('troppo simile')
+            );
+            if (attempt === 2 && blockingIssues.length === 0) {
+              console.warn(
+                `[AI Engine] DM di @${recipient.username} accettato con avvisi stilistici non bloccanti: ${lastIssues.join('; ')}`
+              );
+              break;
+            }
             parsed = null;
           }
 
@@ -584,25 +591,27 @@ Rispondi al messaggio in DM (formato JSON):`;
     ].filter(Boolean);
     const naturalStyleBrief = formatNaturalStyleBrief(buildNaturalStyleBrief(agent, 'social'));
 
-    const systemPrompt = `Interpreta @${agent.username} (${agent.displayName}), ${agent.age || 28} anni, di ${agent.city || 'Italia'}, ${agent.profession || 'persona comune'}.
-Non sei un assistente e non stai creando copy: stai usando un social mentre vivi la tua giornata.
+    const systemPrompt = `Sei @${agent.username} (${agent.displayName}), una persona reale di ${agent.age || 28} anni che vive a ${agent.city || 'Italia'} e lavora come ${agent.profession || 'persona comune'}.
+Stai aprendo il social per pochi secondi, non stai svolgendo un compito di scrittura. Il messaggio nasce da ciò che questa persona noterebbe o proverebbe davvero adesso.
 
-IDENTITÀ STABILE
-Personalità: ${agent.personalityPrompt}
-Umore attuale: ${agent.mood || 'naturale'}
+CHI SEI
+${agent.personalityPrompt}
+Umore: ${agent.mood || 'naturale'}
 Bio: ${agent.bio}
-Ricordi disponibili:
+Ricordi che possono affiorare, ma non devono essere citati per forza:
 - ${memoriesText}
 
-REGOLE DEL SOCIAL
-- Post: normalmente una frase o un frammento, raramente due. Reply: spesso mezza riga o una sola frase.
-- Scegli un solo dettaglio o impulso. Non riassumere notizie, timeline o più eventi insieme.
-- Non inserire timestamp, giorno o data solo perché compaiono nel contesto.
-- Una reply deve reagire a un dettaglio preciso del contenuto scelto; niente consenso generico.
-- Non devi essere sempre interessante, informativo o spiritoso. Puoi anche reagire, ignorare o non pubblicare nulla.
-- Le emoji non sono vietate, ma devono appartenere alla voce della persona e non diventare una firma automatica.
+COME SUONA UN MESSAGGIO CREDIBILE
+- Ha un motivo semplice per esistere: una reazione, un dettaglio visto, un fastidio, una curiosità, un ricordo o una cosa da dire proprio a qualcuno.
+- Contiene soltanto ciò che verrebbe digitato sul telefono. Nessuna introduzione, spiegazione del contesto o conclusione da articolo.
+- Può essere breve, banale, incompleto, emotivo o imperfetto. Non deve dimostrare intelligenza né intrattenere per forza.
+- Un post parla di una sola cosa. Una reply risponde a una parola o idea concreta. Un DM continua il rapporto e la conversazione già esistente.
+- Professione, città, hobby e tormentoni compaiono solo quando verrebbero spontanei; non sono ingredienti obbligatori.
+- Ironia e sarcasmo nascono dal carattere e dalla situazione. Se non arrivano naturali, il messaggio resta serio.
+- Emoji, minuscole e punteggiatura seguono le abitudini della persona; non correggere artificialmente la sua voce.
+- Non copiare orari o date dai dati del feed.
 - Lingua: ${language === 'it' ? 'ITALIANO' : language.toUpperCase()}.
-- Se alleghi una foto generata, imagePrompt è in inglese; altrimenti null.
+- Se una foto ha davvero senso, imagePrompt è in inglese; altrimenti null.
 
 ${naturalStyleBrief}`;
 
@@ -627,8 +636,9 @@ ${JSON.stringify(relationships, null, 2)}
 PERSONE DISPONIBILI PER INTERAZIONI
 ${JSON.stringify(otherUsers.map((user) => ({ username: user.username, displayName: user.displayName })), null, 2)}
 ${randomTopic ? `\nSPUNTO ESTERNO FACOLTATIVO (ignoralo se non riguarda davvero questa persona): ${randomTopic}\n` : ''}
-Non imitare ritmo, punteggiatura o battute dei post recenti: servono come contesto, non come esempi di stile.
-Scegli UNA sola azione. NO_ACTION è normale quando non c’è un impulso credibile; non pubblicare per forza.
+La timeline serve a capire cosa sta succedendo, non è un campione di stile da copiare.
+Scegli UNA sola azione partendo da un impulso concreto del personaggio. Se non riesci a formulare in una frase perché proprio questa persona scriverebbe proprio adesso, usa NO_ACTION.
+Il content deve superare una domanda semplice: sembrerebbe normale trovarlo sul telefono di questa persona, senza conoscere il prompt?
 {
   "action": "NO_ACTION" | "NEW_POST" | "REPLY" | "REACT" | "DIRECT_MESSAGE" | "SUPPORT_TICKET",
   "targetPostId": "<id esistente del post o della risposta se REPLY/REACT, altrimenti null>",
@@ -673,7 +683,7 @@ Scegli UNA sola azione. NO_ACTION è normale quando non c’è un impulso credib
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const retryInstruction = lastIssues.length
-          ? `Il JSON precedente era valido ma il risultato sembrava artificiale o incoerente. Correggi questi problemi: ${lastIssues.join('; ')}. Mantieni azione e target se erano validi, ma riscrivi content da zero con una forma diversa. Restituisci solo il JSON completo.`
+          ? `La proposta non ha superato il controllo: ${lastIssues.join('; ')}. Mantieni azione e target se sono validi. Immagina il singolo motivo concreto per cui @${agent.username} prende il telefono, poi riscrivi content da zero inserendo soltanto le parole che digiterebbe, senza spiegazioni o cornice. Restituisci solo il JSON completo.`
           : 'Il JSON precedente è incompleto o non valido. Restituisci un solo oggetto JSON completo, senza markdown né spiegazioni.';
         const attemptMessages: LLMMessage[] = attempt === 1
           ? messages
@@ -696,31 +706,43 @@ Scegli UNA sola azione. NO_ACTION è normale quando non c’è un impulso credib
           continue;
         }
 
-        const issues: string[] = [];
+        const structuralIssues: string[] = [];
         if ((decision.action === 'REPLY' || decision.action === 'REACT') && !knownTargetIds.has(String(decision.targetPostId || ''))) {
-          issues.push('targetPostId assente o non presente nella timeline fornita');
+          structuralIssues.push('targetPostId assente o non presente nella timeline fornita');
         }
         if (decision.action === 'DIRECT_MESSAGE' && !knownUsernames.has(String(decision.targetUsername || ''))) {
-          issues.push('targetUsername assente o non presente tra le persone disponibili');
+          structuralIssues.push('targetUsername assente o non presente tra le persone disponibili');
         }
         if (
           decision.action === 'REACT' &&
           !new Set(['like', 'repost', 'laugh', 'angry', 'fire', 'clown']).has(String(decision.reactionType || ''))
         ) {
-          issues.push('reactionType assente o non valido');
+          structuralIssues.push('reactionType assente o non valido');
         }
+
+        const qualityIssues: string[] = [];
         if (decision.action === 'NEW_POST' || decision.action === 'REPLY') {
-          issues.push(...collectContentQualityIssues(String(decision.content || ''), recentPublicContents, 'social'));
+          qualityIssues.push(...collectContentQualityIssues(String(decision.content || ''), recentPublicContents, 'social'));
         }
         if (decision.action === 'DIRECT_MESSAGE') {
-          issues.push(...collectContentQualityIssues(String(decision.content || ''), recentDmContents, 'dm'));
+          qualityIssues.push(...collectContentQualityIssues(String(decision.content || ''), recentDmContents, 'dm'));
         }
 
-        lastIssues = [...new Set(issues)];
+        lastIssues = [...new Set([...structuralIssues, ...qualityIssues])];
         if (lastIssues.length === 0) break;
 
+        const blockingQualityIssues = qualityIssues.filter(
+          (issue) => issue === 'testo vuoto' || issue.includes('troppo lungo') || issue.includes('troppo simile')
+        );
+        if (attempt === maxAttempts && structuralIssues.length === 0 && blockingQualityIssues.length === 0) {
+          console.warn(
+            `[AI Engine] @${agent.username}: accetto l’ultimo tentativo con avvisi stilistici non bloccanti: ${qualityIssues.join('; ')}`
+          );
+          break;
+        }
+
         console.warn(
-          `[AI Engine] Tentativo ${attempt}/${maxAttempts}: contenuto scartato per @${agent.username}: ${lastIssues.join('; ')}`
+          `[AI Engine] Tentativo ${attempt}/${maxAttempts}: contenuto da rigenerare per @${agent.username}: ${lastIssues.join('; ')}`
         );
         decision = null;
       }

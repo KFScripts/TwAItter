@@ -49,18 +49,15 @@ const TREND_SHAPES = [
 ];
 
 const TEXTURES = [
-  'Ritmo irregolare: una frase corta va bene; non bilanciare ogni proposizione.',
-  'Puoi usare minuscole, una frase nominale o una punteggiatura imperfetta se appartengono alla voce.',
-  'Scegli parole che questa persona userebbe davvero; evita il vocabolario neutro da comunicato.',
-  'Non lucidare troppo il testo: lascia una piccola esitazione, abbreviazione o ellissi naturale.',
-  'Non nominare mestiere, città o interessi se non entrano organicamente nel pensiero.',
-  'La voce viene prima della completezza: meglio una reazione parziale che una spiegazione esaustiva.'
+  'Scrivi come se avessi aperto il telefono per dieci secondi: vai subito al punto che ti è rimasto in testa.',
+  'Preferisci un verbo o un dettaglio concreto a parole astratte e aggettivi generici.',
+  'Se il pensiero è semplice, lascialo semplice: non aggiungere una seconda frase per renderlo importante.',
+  'In una risposta puoi omettere ciò che è già chiaro dalla conversazione, come fanno le persone vere.',
+  'Usa il ritmo abituale del personaggio, anche quando significa minuscole, una frase nominale o poche parole.',
+  'Lascia che il tono venga dalla reazione reale del personaggio, non da una costruzione retorica perfetta.'
 ];
 
 const AI_CLICHES = [
-  'cosa ne pensate',
-  'voi cosa ne pensate',
-  'che ne pensate',
   'è importante ricordare',
   'oggi più che mai',
   'in un mondo in cui',
@@ -69,8 +66,7 @@ const AI_CLICHES = [
   'game changer',
   'una vera rivoluzione',
   'riflettiamo su',
-  'apre nuove prospettive',
-  'fa riflettere'
+  'apre nuove prospettive'
 ];
 
 function pick<T>(values: T[], random: () => number): T {
@@ -104,9 +100,9 @@ export function buildNaturalStyleBrief(
 
   const shapes = channel === 'dm' ? DM_SHAPES : channel === 'trend' ? TREND_SHAPES : SOCIAL_SHAPES;
   const voiceGuardrails = [
-    `Mantieni la voce specifica di @${agent.username}; non scrivere come un narratore neutro.`,
-    'Non inserire automaticamente bio, città, lavoro e interessi nello stesso testo.',
-    'Non trasformare ogni input in un’opinione brillante: sono ammesse banalità, esitazioni, silenzi e reazioni incompiute.'
+    `Fai parlare @${agent.username} con il suo lessico e il suo carattere, non con una voce social generica.`,
+    'Parti da una reazione precisa: qualcosa che nota, vuole, teme, ricorda, contesta o trova ridicolo in questo momento.',
+    'Il risultato deve sembrare sensato anche se nessuno mette like: niente performance obbligatoria per il pubblico.'
   ];
 
   if (agent.age && agent.age >= 55) {
@@ -122,11 +118,9 @@ export function buildNaturalStyleBrief(
     humor,
     texture: pick(TEXTURES, random),
     forbiddenHabits: [
-      'niente struttura fatto + mestiere/città + battuta finale',
-      'niente terne ritmiche o elenchi di tre immagini solo per suonare arguto',
-      'niente morale, riassunto, spiegazione della battuta o domanda finale di rito',
-      'niente emoji-firma ripetuta; usane al massimo una e solo se appartiene davvero alla persona',
-      'niente tono da assistente, giornalista generico o copywriter motivazionale'
+      'non comprimere cronaca, biografia del profilo e battuta nello stesso messaggio',
+      'non spiegare la morale o la battuta e non chiudere automaticamente con una domanda al pubblico',
+      'non usare tono da assistente, comunicato o mini-editoriale se il personaggio non parla così'
     ]
   };
 }
@@ -138,7 +132,7 @@ export function formatNaturalStyleBrief(brief: NaturalStyleBrief): string {
     `- Forma scelta: ${brief.shape}.`,
     `- Umorismo: ${brief.humor}`,
     `- Texture: ${brief.texture}`,
-    '- Tic da evitare:',
+    '- Controllo rapido prima di inviare:',
     ...brief.forbiddenHabits.map((rule) => `  * ${rule}`)
   ].join('\n');
 }
@@ -154,17 +148,18 @@ function normalizeWords(text: string): string[] {
     .filter((word) => word.length > 2);
 }
 
-function jaccardSimilarity(a: string[], b: string[]): number {
+function similarityScores(a: string[], b: string[]): { jaccard: number; containment: number } {
   const setA = new Set(a);
   const setB = new Set(b);
-  if (!setA.size || !setB.size) return 0;
+  if (!setA.size || !setB.size) return { jaccard: 0, containment: 0 };
   let intersection = 0;
   for (const word of setA) {
     if (setB.has(word)) intersection++;
   }
-  const jaccard = intersection / (setA.size + setB.size - intersection);
-  const containment = intersection / Math.min(setA.size, setB.size);
-  return Math.max(jaccard, containment);
+  return {
+    jaccard: intersection / (setA.size + setB.size - intersection),
+    containment: intersection / Math.min(setA.size, setB.size)
+  };
 }
 
 function openingKey(text: string): string {
@@ -191,7 +186,13 @@ export function collectContentQualityIssues(
   const opening = openingKey(trimmed);
   for (const recent of recentContents.filter(Boolean).slice(0, 40)) {
     const recentWords = normalizeWords(recent);
-    if (words.length >= 5 && recentWords.length >= 5 && jaccardSimilarity(words, recentWords) >= 0.68) {
+    const similarity = similarityScores(words, recentWords);
+    const sameCoreSentence = similarity.containment >= 0.9 && Math.abs(words.length - recentWords.length) <= 3;
+    if (
+      words.length >= 5 &&
+      recentWords.length >= 5 &&
+      (similarity.jaccard >= 0.72 || sameCoreSentence)
+    ) {
       issues.push('troppo simile a un contenuto recente');
       break;
     }
@@ -202,14 +203,14 @@ export function collectContentQualityIssues(
       .slice(0, 20)
       .filter((recent) => openingKey(recent) === opening)
       .length;
-    if (repeatedOpeningCount >= 2) {
+    if (repeatedOpeningCount >= 3) {
       issues.push('ripete troppo spesso la stessa apertura di tre parole');
     }
   }
 
   const trailingEmoji = trimmed.match(/[\p{Extended_Pictographic}\uFE0F]+$/u)?.[0];
   if (trailingEmoji) {
-    const repeatedSignature = recentContents.slice(0, 12).filter((item) => item.trim().endsWith(trailingEmoji)).length >= 2;
+    const repeatedSignature = recentContents.slice(0, 15).filter((item) => item.trim().endsWith(trailingEmoji)).length >= 3;
     if (repeatedSignature) issues.push(`ripete l’emoji-firma finale ${trailingEmoji}`);
   }
 
