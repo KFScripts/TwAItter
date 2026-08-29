@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
     "build": "tsc",
+    "test:content-style": "npm run build && node scripts/test-content-style.cjs",
     "start": "node dist/index.js",
     "seed": "ts-node src/scripts/seed.ts"
   },
