@@ -92,10 +92,11 @@ export class LLMGateway {
         if (!endpoint) endpoint = 'https://api.openai.com/v1/responses';
         console.log(`[LLM Gateway] [OpenAI Responses] -> ${endpoint} (Modello: ${model})`);
 
-        const payload = {
+        const payload: any = {
           model,
           input: options.messages.map((m) => ({ role: m.role, content: m.content })),
-          temperature: options.temperature ?? 0.85
+          temperature: options.temperature ?? 0.85,
+          max_output_tokens: options.maxTokens ?? (options.responseFormatJson ? 800 : 350)
         };
 
         const response = await axios.post(endpoint, payload, {
@@ -316,7 +317,7 @@ export class LLMGateway {
       const maybeJson = jsonEnd > 0 ? slice.slice(0, jsonEnd + 1) : slice;
       try {
         const parsed = JSON.parse(maybeJson);
-        if (parsed && typeof parsed === 'object' && typeof parsed.action === 'string') {
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           return maybeJson;
         }
       } catch {
@@ -324,7 +325,7 @@ export class LLMGateway {
         if (repaired) {
           try {
             const parsed = JSON.parse(repaired);
-            if (parsed && typeof parsed === 'object' && typeof parsed.action === 'string') {
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
               return repaired;
             }
           } catch {

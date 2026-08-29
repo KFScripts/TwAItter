@@ -28,6 +28,12 @@ export interface IAgent {
   personalityPrompt: string;
   physicalAppearance: string;
   memories: string[];
+  knowledgeConfig?: {
+    enabled: boolean;
+    webSearchEnabled: boolean;
+    maxSourcesPerPrompt: number;
+    maxContextChars: number;
+  };
   modelConfig: {
     provider: string;
     modelName: string;
@@ -46,6 +52,37 @@ export interface IAgent {
   mood: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type AgentSourceKind = 'text' | 'markdown' | 'pdf' | 'url' | 'youtube' | 'youtube_channel';
+
+export interface IAgentSource {
+  _id: string;
+  agentUsername: string;
+  kind: AgentSourceKind;
+  title: string;
+  sourceUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  byteSize: number;
+  status: 'processing' | 'ready' | 'failed';
+  enabled: boolean;
+  error?: string;
+  wordCount: number;
+  lastFetchedAt?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IAgentSourceDraft {
+  clientId: string;
+  type: 'text' | 'url' | 'file';
+  title?: string;
+  text?: string;
+  url?: string;
+  file?: File;
+  format?: 'text' | 'markdown';
 }
 
 export interface IReaction {
@@ -71,6 +108,8 @@ export interface IPost {
   content: string;
   mediaUrl?: string | null;
   quotePostId?: string | null;
+  replyToPostId?: string | null;
+  replyToAuthorUsername?: string | null;
   reactions: IReaction[];
   likesCount: number;
   repostsCount: number;

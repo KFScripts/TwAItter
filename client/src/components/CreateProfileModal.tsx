@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { IAgent } from '../types';
+import { IAgent, IAgentSourceDraft } from '../types';
 import { api } from '../services/api';
-import { X, Sparkles, User, AtSign, Briefcase, MapPin, Smile, Bot, Check, Upload } from 'lucide-react';
+import { X, Sparkles, User, AtSign, Briefcase, MapPin, Smile, Bot, Check, Upload, BookOpen, FileText, Link2, Trash2, Globe2 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { VerifiedBadge } from './VerifiedBadge';
 
@@ -74,6 +74,14 @@ export const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   const [physicalAppearance, setPhysicalAppearance] = useState('');
   const [mood, setMood] = useState('focused');
   const [activityInterval, setActivityInterval] = useState(20);
+  const [knowledgeEnabled, setKnowledgeEnabled] = useState(true);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [sourceDrafts, setSourceDrafts] = useState<IAgentSourceDraft[]>([]);
+  const [sourceMode, setSourceMode] = useState<'text' | 'url' | 'file'>('text');
+  const [sourceTitle, setSourceTitle] = useState('');
+  const [sourceText, setSourceText] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -108,6 +116,86 @@ export const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const addSourceDraft = () => {
+    const clientId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+
+    if (sourceMode === 'text') {
+      if (!sourceText.trim()) {
+        setErrorMsg('Inserisci il testo o Markdown della fonte.');
+        return;
+      }
+      setSourceDrafts((current) => [...current, {
+        clientId,
+        type: 'text',
+        title: sourceTitle.trim() || undefined,
+        text: sourceText,
+        format: sourceText.includes('# ') || sourceText.includes('## ') ? 'markdown' : 'text'
+      }]);
+    } else if (sourceMode === 'url') {
+      try {
+        const parsed = new URL(sourceUrl.trim());
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+      } catch {
+        setErrorMsg('Inserisci una URL HTTP o HTTPS valida.');
+        return;
+      }
+      setSourceDrafts((current) => [...current, {
+        clientId,
+        type: 'url',
+        title: sourceTitle.trim() || undefined,
+        url: sourceUrl.trim()
+      }]);
+    } else {
+      if (!sourceFile) {
+        setErrorMsg('Seleziona un file TXT, Markdown o PDF.');
+        return;
+      }
+      if (sourceFile.size > 10 * 1024 * 1024) {
+        setErrorMsg('La fonte supera il limite di 10 MB.');
+        return;
+      }
+      setSourceDrafts((current) => [...current, {
+        clientId,
+        type: 'file',
+        title: sourceTitle.trim() || undefined,
+        file: sourceFile
+      }]);
+    }
+
+    setSourceTitle('');
+    setSourceText('');
+    setSourceUrl('');
+    setSourceFile(null);
+    setErrorMsg('');
+  };
+
+  const uploadSourceDrafts = async (agentUsername: string) => {
+    const failures: string[] = [];
+    for (const draft of sourceDrafts) {
+      try {
+        if (draft.type === 'text' && draft.text) {
+          const source = await api.addAgentTextSource(agentUsername, {
+            title: draft.title,
+            text: draft.text,
+            format: draft.format
+          });
+          if (source.status === 'failed') failures.push(`${source.title}: ${source.error || 'elaborazione fallita'}`);
+        } else if (draft.type === 'url' && draft.url) {
+          const source = await api.addAgentUrlSource(agentUsername, { title: draft.title, url: draft.url });
+          if (source.status === 'failed') failures.push(`${source.title}: ${source.error || 'elaborazione fallita'}`);
+        } else if (draft.type === 'file' && draft.file) {
+          const source = await api.addAgentFileSource(agentUsername, draft.file, draft.title);
+          if (source.status === 'failed') failures.push(`${source.title}: ${source.error || 'elaborazione fallita'}`);
+        }
+      } catch (err: any) {
+        failures.push(`${draft.title || draft.file?.name || draft.url || 'Fonte'}: ${err.message || 'errore upload'}`);
+      }
+    }
+    return failures;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!displayName.trim() || !username.trim() || !personalityPrompt.trim()) {
@@ -132,10 +220,20 @@ export const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         personalityPrompt: personalityPrompt.trim(),
         physicalAppearance: physicalAppearance.trim(),
         mood,
-        activityInterval: Number(activityInterval) || 20
+        activityInterval: Number(activityInterval) || 20,
+        knowledgeConfig: {
+          enabled: knowledgeEnabled,
+          webSearchEnabled,
+          maxSourcesPerPrompt: 4,
+          maxContextChars: 5000
+        }
       });
 
+      const sourceFailures = await uploadSourceDrafts(created.username);
       onCreated(created);
+      if (sourceFailures.length > 0) {
+        window.alert(`Profilo creato. Alcune fonti non sono state elaborate e possono essere riprovate dall’editor: ${sourceFailures.join(' · ')}`);
+      }
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Errore nella creazione del profilo');
@@ -356,6 +454,69 @@ export const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
               onChange={(e) => setPersonalityPrompt(e.target.value)}
               className="w-full bg-[#121418] border border-twitter-border rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-twitter-blue leading-relaxed font-mono"
             />
+          </div>
+
+          {/* Knowledge Sources */}
+          <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/10 p-4 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <BookOpen className="w-4 h-4 text-emerald-400 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-white">Fonti e ricerca del profilo</h4>
+                <p className="text-[10px] text-twitter-muted mt-0.5">Assegna conoscenze che l’agente potrà recuperare quando sono pertinenti.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-center justify-between gap-2 rounded-lg bg-[#121418] border border-twitter-border px-3 py-2 text-[11px] text-white">
+                <span>Usa fonti assegnate</span>
+                <input type="checkbox" checked={knowledgeEnabled} onChange={(e) => setKnowledgeEnabled(e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              </label>
+              <label className="flex items-center justify-between gap-2 rounded-lg bg-[#121418] border border-twitter-border px-3 py-2 text-[11px] text-white">
+                <span className="flex items-center gap-1"><Globe2 className="w-3.5 h-3.5 text-twitter-blue" /> Ricerca web</span>
+                <input type="checkbox" checked={webSearchEnabled} onChange={(e) => setWebSearchEnabled(e.target.checked)} className="w-4 h-4 accent-twitter-blue" />
+              </label>
+            </div>
+
+            <div className="flex gap-1 rounded-lg bg-black/30 p-1">
+              {([
+                ['text', FileText, 'Testo / Markdown'],
+                ['url', Link2, 'URL / YouTube'],
+                ['file', Upload, 'File']
+              ] as const).map(([value, Icon, label]) => (
+                <button key={value} type="button" onClick={() => setSourceMode(value)} className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold flex items-center justify-center gap-1 transition ${sourceMode === value ? 'bg-[#24282f] text-white' : 'text-twitter-muted hover:text-white'}`}>
+                  <Icon className="w-3 h-3" /> {label}
+                </button>
+              ))}
+            </div>
+
+            <input value={sourceTitle} onChange={(e) => setSourceTitle(e.target.value)} placeholder="Titolo fonte (opzionale)" className="w-full bg-[#121418] border border-twitter-border rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none focus:border-emerald-500" />
+            {sourceMode === 'text' && (
+              <textarea value={sourceText} onChange={(e) => setSourceText(e.target.value)} rows={4} placeholder="Incolla testo, appunti o Markdown..." className="w-full bg-[#121418] border border-twitter-border rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none focus:border-emerald-500 resize-y" />
+            )}
+            {sourceMode === 'url' && (
+              <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="Pagina web, PDF remoto, video o canale YouTube" className="w-full bg-[#121418] border border-twitter-border rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none focus:border-twitter-blue" />
+            )}
+            {sourceMode === 'file' && (
+              <label className="block rounded-lg border border-dashed border-twitter-border hover:border-emerald-500 p-3 text-center cursor-pointer">
+                <span className="text-[11px] text-white">{sourceFile ? sourceFile.name : 'Seleziona TXT, Markdown o PDF'}</span>
+                <span className="block text-[9px] text-twitter-muted mt-1">Massimo 10 MB</span>
+                <input type="file" accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf" onChange={(e) => setSourceFile(e.target.files?.[0] || null)} className="hidden" />
+              </label>
+            )}
+            <button type="button" onClick={addSourceDraft} className="w-full rounded-full bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold py-2">Aggiungi alla creazione</button>
+
+            {sourceDrafts.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold text-white">Da elaborare dopo la creazione ({sourceDrafts.length})</p>
+                {sourceDrafts.map((draft) => (
+                  <div key={draft.clientId} className="flex items-center gap-2 rounded-lg bg-[#121418] border border-twitter-border px-2.5 py-2">
+                    {draft.type === 'url' ? <Link2 className="w-3.5 h-3.5 text-twitter-blue" /> : draft.type === 'file' ? <Upload className="w-3.5 h-3.5 text-emerald-400" /> : <FileText className="w-3.5 h-3.5 text-emerald-400" />}
+                    <span className="flex-1 min-w-0 truncate text-[10px] text-white">{draft.title || draft.file?.name || draft.url || 'Fonte testuale'}</span>
+                    <button type="button" onClick={() => setSourceDrafts((current) => current.filter((item) => item.clientId !== draft.clientId))} className="p-1 text-twitter-muted hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Mood & Activity */}

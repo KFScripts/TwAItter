@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { IAgent } from '../types';
 import { api } from '../services/api';
-import { X, Save, Sparkles, User, Cpu } from 'lucide-react';
+import { X, Save, Sparkles, User, Cpu, BookOpen } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { AgentSourcesPanel } from './AgentSourcesPanel';
 
 interface EditAgentModalProps {
   agent: IAgent;
@@ -27,13 +28,15 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
   const [mood, setMood] = useState(agent.mood || 'focused');
   const [activityInterval, setActivityInterval] = useState(agent.activityInterval || 20);
   const [isActive, setIsActive] = useState(agent.isActive !== false);
+  const [knowledgeEnabled, setKnowledgeEnabled] = useState(agent.knowledgeConfig?.enabled !== false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(agent.knowledgeConfig?.webSearchEnabled === true);
 
   const [provider, setProvider] = useState(agent.modelConfig?.provider || '');
   const [modelName, setModelName] = useState(agent.modelConfig?.modelName || '');
   const [temperature, setTemperature] = useState(agent.modelConfig?.temperature ?? 0.85);
   const [maxTokens, setMaxTokens] = useState(agent.modelConfig?.maxTokens ?? 300);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'model'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'ai' | 'sources' | 'model'>('profile');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -72,6 +75,12 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
         mood,
         activityInterval: Number(activityInterval) || 20,
         isActive,
+        knowledgeConfig: {
+          enabled: knowledgeEnabled,
+          webSearchEnabled,
+          maxSourcesPerPrompt: agent.knowledgeConfig?.maxSourcesPerPrompt || 4,
+          maxContextChars: agent.knowledgeConfig?.maxContextChars || 5000
+        },
         modelConfig: {
           provider,
           modelName,
@@ -111,7 +120,7 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-twitter-border bg-[#121418] text-xs font-semibold px-4">
+        <div className="flex border-b border-twitter-border bg-[#121418] text-xs font-semibold px-4 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
@@ -135,6 +144,18 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
           >
             <Sparkles className="w-4 h-4" />
             <span>Personalità & Prompt</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('sources')}
+            className={`py-3 px-4 flex items-center gap-1.5 border-b-2 transition whitespace-nowrap ${
+              activeTab === 'sources'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-twitter-muted hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Fonti & Ricerca</span>
           </button>
           <button
             type="button"
@@ -320,6 +341,16 @@ export const EditAgentModal: React.FC<EditAgentModalProps> = ({
                 </label>
               </div>
             </div>
+          )}
+
+          {activeTab === 'sources' && (
+            <AgentSourcesPanel
+              username={agent.username}
+              knowledgeEnabled={knowledgeEnabled}
+              webSearchEnabled={webSearchEnabled}
+              onKnowledgeEnabledChange={setKnowledgeEnabled}
+              onWebSearchEnabledChange={setWebSearchEnabled}
+            />
           )}
 
           {activeTab === 'model' && (

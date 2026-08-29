@@ -9,6 +9,7 @@ import { AgentEngine } from './services/agentEngine';
 import { hookConsole } from './services/logBuffer';
 
 import agentRoutes from './routes/agentRoutes';
+import agentSourceRoutes from './routes/agentSourceRoutes';
 import postRoutes, { migrateLegacyReplies } from './routes/postRoutes';
 import dmRoutes from './routes/dmRoutes';
 import ticketRoutes from './routes/ticketRoutes';
@@ -31,6 +32,7 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/agents', agentSourceRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/dms', dmRoutes);
